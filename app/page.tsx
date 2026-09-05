@@ -15,7 +15,6 @@ import { TodayIsDifferentModal } from '@/components/dashboard/TodayIsDifferentMo
 import { QuickTimeAdjustModal } from '@/components/dashboard/QuickTimeAdjustModal';
 import { MorningPlanModal } from '@/components/dashboard/MorningPlanModal';
 import { EveningReflectionModal } from '@/components/dashboard/EveningReflectionModal';
-import { MilestoneCelebration } from '@/components/feedback/MilestoneCelebration';
 import { PageTransition } from '@/components/motion/PageTransition';
 import { useStore } from '@/lib/store';
 
@@ -25,9 +24,6 @@ export default function HomePage() {
 
   return (
     <PageTransition className="space-y-6">
-      {/* Milestone Celebration Modal */}
-      <MilestoneCelebration />
-
       {/* Date & Greeting Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

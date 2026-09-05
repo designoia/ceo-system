@@ -5,25 +5,51 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Flame, Sparkles, X, Trophy } from 'lucide-react';
 import { useStore } from '@/lib/store';
 
+const CELEBRATED_STORAGE_KEY = 'ceo_os_celebrated_milestones';
+
 export function MilestoneCelebration() {
   const { momentumStats } = useStore();
   const [showModal, setShowModal] = useState(false);
-  const [lastCelebratedMilestone, setLastCelebratedMilestone] = useState<number | null>(null);
 
   useEffect(() => {
-    if (
-      momentumStats.isMilestone &&
-      momentumStats.milestoneValue &&
-      momentumStats.milestoneValue !== lastCelebratedMilestone
-    ) {
-      setShowModal(true);
-      setLastCelebratedMilestone(momentumStats.milestoneValue);
+    if (typeof window === 'undefined') return;
+
+    const milestoneVal = momentumStats.milestoneDays || momentumStats.milestoneValue;
+
+    if (momentumStats.isMilestone && milestoneVal) {
+      try {
+        const stored = localStorage.getItem(CELEBRATED_STORAGE_KEY);
+        const celebrated: number[] = stored ? JSON.parse(stored) : [];
+
+        // Only show if this specific milestone hasn't been celebrated/dismissed yet
+        if (!celebrated.includes(milestoneVal)) {
+          setShowModal(true);
+        }
+      } catch {
+        // Fallback
+      }
     }
-  }, [momentumStats.isMilestone, momentumStats.milestoneValue, lastCelebratedMilestone]);
+  }, [momentumStats.isMilestone, momentumStats.milestoneDays, momentumStats.milestoneValue]);
 
-  if (!showModal || !momentumStats.milestoneValue) return null;
+  const handleDismiss = () => {
+    setShowModal(false);
+    const milestoneVal = momentumStats.milestoneDays || momentumStats.milestoneValue;
+    if (milestoneVal && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(CELEBRATED_STORAGE_KEY);
+        const celebrated: number[] = stored ? JSON.parse(stored) : [];
+        if (!celebrated.includes(milestoneVal)) {
+          celebrated.push(milestoneVal);
+          localStorage.setItem(CELEBRATED_STORAGE_KEY, JSON.stringify(celebrated));
+        }
+      } catch {
+        // Ignore storage errors
+      }
+    }
+  };
 
-  const milestoneDays = momentumStats.milestoneValue;
+  const milestoneDays = momentumStats.milestoneDays || momentumStats.milestoneValue;
+  if (!showModal || !milestoneDays) return null;
 
   const getMilestoneMessage = (days: number) => {
     switch (days) {
@@ -34,7 +60,7 @@ export function MilestoneCelebration() {
       case 7:
         return 'One full week of uninterrupted daily execution.';
       case 14:
-        return 'Two weeks of executive consistency. Systems are compound.';
+        return 'Two weeks of executive consistency. Systems are compounding.';
       case 30:
         return '30 days of relentless momentum. You are operating at CEO level.';
       case 60:
@@ -61,7 +87,7 @@ export function MilestoneCelebration() {
 
           {/* Close button */}
           <button
-            onClick={() => setShowModal(false)}
+            onClick={handleDismiss}
             className="absolute top-4 right-4 rounded-full p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
           >
             <X className="h-4 w-4" />
@@ -108,7 +134,7 @@ export function MilestoneCelebration() {
           </div>
 
           <button
-            onClick={() => setShowModal(false)}
+            onClick={handleDismiss}
             className="w-full rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 py-3 text-xs font-bold text-black shadow-lg hover:brightness-110 transition-all min-h-[44px]"
           >
             Keep Crushing It →

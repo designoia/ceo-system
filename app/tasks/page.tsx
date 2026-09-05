@@ -27,7 +27,6 @@ import { AnimatedCheckmark } from '@/components/motion/AnimatedCheckmark';
 import { RestoreTaskModal } from '@/components/tasks/RestoreTaskModal';
 import { DeleteConfirmationModal } from '@/components/tasks/DeleteConfirmationModal';
 import { TrashModal } from '@/components/tasks/TrashModal';
-import { MilestoneCelebration } from '@/components/feedback/MilestoneCelebration';
 
 const STATUS_COLUMNS: { key: TaskStatus; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: 'TODAY', label: 'Today', icon: Target },
@@ -96,9 +95,6 @@ export default function TasksPage() {
 
   return (
     <PageTransition className="space-y-6">
-      {/* Milestone Celebration Modal */}
-      <MilestoneCelebration />
-
       {/* Restore Task Modal */}
       <RestoreTaskModal
         task={taskToRestore}

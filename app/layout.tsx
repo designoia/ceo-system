@@ -10,6 +10,7 @@ import { FocusModeModal } from '@/components/focus/FocusModeModal';
 import { WelcomeBackModal } from '@/components/dashboard/WelcomeBackModal';
 import { OverdueReviewModal } from '@/components/dashboard/OverdueReviewModal';
 import { MustWinCarryForwardModal } from '@/components/dashboard/MustWinCarryForwardModal';
+import { MilestoneCelebration } from '@/components/feedback/MilestoneCelebration';
 import { ToastContainer } from '@/components/motion/ToastContainer';
 import { ConnectionBanner } from '@/components/motion/ConnectionBanner';
 
@@ -69,6 +70,7 @@ export default function RootLayout({
           <WelcomeBackModal />
           <OverdueReviewModal />
           <MustWinCarryForwardModal />
+          <MilestoneCelebration />
           <ToastContainer />
           <ConnectionBanner />
         </StoreProvider>
