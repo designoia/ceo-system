@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { 
   Home, 
   Target, 
@@ -30,12 +31,15 @@ export function Sidebar() {
   const { currentMonth, momentumStats } = useStore();
 
   return (
-    <aside className="hidden md:flex h-screen w-64 flex-col border-r border-border bg-card/60 p-4 backdrop-blur-md">
+    <aside className="hidden md:flex h-screen w-64 flex-col border-r border-border bg-card/60 p-4 backdrop-blur-md shrink-0">
       {/* Brand Header */}
       <div className="flex items-center gap-3 px-3 py-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold shadow-sm">
+        <motion.div
+          whileHover={{ rotate: 15, scale: 1.05 }}
+          className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold shadow-sm"
+        >
           <Sparkles className="h-5 w-5" />
-        </div>
+        </motion.div>
         <div>
           <span className="font-bold text-foreground text-sm tracking-tight">CEO OS</span>
           <span className="block text-[11px] text-muted-foreground font-medium">5-Year Plan → Today</span>
@@ -64,14 +68,21 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
+                'relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
                 isActive
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                  ? 'text-primary-foreground font-semibold shadow-sm'
+                  : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
               )}
             >
-              <Icon className="h-4 w-4" />
-              <span>{item.label}</span>
+              {isActive && (
+                <motion.div
+                  layoutId="sidebar-active-indicator"
+                  className="absolute inset-0 rounded-xl bg-primary shadow-sm -z-10"
+                  transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                />
+              )}
+              <Icon className="h-4 w-4 relative z-10" />
+              <span className="relative z-10">{item.label}</span>
             </Link>
           );
         })}
@@ -94,9 +105,9 @@ export function Sidebar() {
         <Link
           href="/settings"
           className={cn(
-            'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all',
+            'relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors',
             pathname === '/settings'
-              ? 'bg-accent text-foreground font-semibold'
+              ? 'text-foreground font-semibold bg-accent'
               : 'text-muted-foreground hover:bg-accent hover:text-foreground'
           )}
         >
