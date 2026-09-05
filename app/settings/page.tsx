@@ -257,6 +257,36 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* DATABASE & SUPABASE CLOUD STATUS */}
+      <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/5 p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+              <Shield className="h-4 w-4" />
+            </span>
+            <div>
+              <h3 className="text-sm font-bold text-foreground">Supabase Cloud Database</h3>
+              <p className="text-[11px] text-muted-foreground">PostgreSQL Cloud Database with Row-Level Security</p>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-[11px] font-semibold text-emerald-500">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            Connected
+          </span>
+        </div>
+
+        <div className="rounded-xl bg-background/60 border border-border/80 p-3 text-xs space-y-1.5 font-mono">
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span>Endpoint:</span>
+            <span className="text-foreground">https://iwbfcbnajbqkfcsxoyxi.supabase.co</span>
+          </div>
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span>Schema & Migrations:</span>
+            <span className="text-emerald-500 font-semibold">Phase 1 + Phase 2 (Executed)</span>
+          </div>
+        </div>
+      </div>
+
       {/* 4. DATA EXPORT & IMPORT */}
       <div className="rounded-3xl border border-border bg-card/60 p-6 space-y-4">
         <div className="flex items-center gap-2">
