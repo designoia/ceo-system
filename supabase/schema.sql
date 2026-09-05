@@ -251,39 +251,69 @@ create table if not exists public.daily_plans (
   constraint unique_user_daily_plan unique (user_id, date)
 );
 
--- ROW LEVEL SECURITY (RLS)
+-- ROW LEVEL SECURITY (RLS) POLICIES (Idempotent: Drops and recreates)
 alter table public.profiles enable row level security;
-alter table public.settings enable row level security;
-alter table public.businesses enable row level security;
-alter table public.goals enable row level security;
-alter table public.months enable row level security;
-alter table public.projects enable row level security;
-alter table public.tasks enable row level security;
-alter table public.task_logs enable row level security;
-alter table public.activity_logs enable row level security;
-alter table public.schedule_blocks enable row level security;
-alter table public.daily_checkins enable row level security;
-alter table public.weekly_reviews enable row level security;
-alter table public.monthly_reviews enable row level security;
-alter table public.daily_capacity enable row level security;
-alter table public.schedule_overrides enable row level security;
-alter table public.daily_plans enable row level security;
-
+drop policy if exists "Users manage own profiles" on public.profiles;
 create policy "Users manage own profiles" on public.profiles for all using (auth.uid() = id);
+
+alter table public.settings enable row level security;
+drop policy if exists "Users manage own settings" on public.settings;
 create policy "Users manage own settings" on public.settings for all using (auth.uid() = user_id);
+
+alter table public.businesses enable row level security;
+drop policy if exists "Users manage own businesses" on public.businesses;
 create policy "Users manage own businesses" on public.businesses for all using (auth.uid() = user_id);
+
+alter table public.goals enable row level security;
+drop policy if exists "Users manage own goals" on public.goals;
 create policy "Users manage own goals" on public.goals for all using (auth.uid() = user_id);
+
+alter table public.months enable row level security;
+drop policy if exists "Users manage own months" on public.months;
 create policy "Users manage own months" on public.months for all using (auth.uid() = user_id);
+
+alter table public.projects enable row level security;
+drop policy if exists "Users manage own projects" on public.projects;
 create policy "Users manage own projects" on public.projects for all using (auth.uid() = user_id);
+
+alter table public.tasks enable row level security;
+drop policy if exists "Users manage own tasks" on public.tasks;
 create policy "Users manage own tasks" on public.tasks for all using (auth.uid() = user_id);
+
+alter table public.task_logs enable row level security;
+drop policy if exists "Users manage own task_logs" on public.task_logs;
 create policy "Users manage own task_logs" on public.task_logs for all using (auth.uid() = user_id);
+
+alter table public.activity_logs enable row level security;
+drop policy if exists "Users manage own activity_logs" on public.activity_logs;
 create policy "Users manage own activity_logs" on public.activity_logs for all using (auth.uid() = user_id);
+
+alter table public.schedule_blocks enable row level security;
+drop policy if exists "Users manage own schedule_blocks" on public.schedule_blocks;
 create policy "Users manage own schedule_blocks" on public.schedule_blocks for all using (auth.uid() = user_id);
+
+alter table public.daily_checkins enable row level security;
+drop policy if exists "Users manage own daily_checkins" on public.daily_checkins;
 create policy "Users manage own daily_checkins" on public.daily_checkins for all using (auth.uid() = user_id);
+
+alter table public.weekly_reviews enable row level security;
+drop policy if exists "Users manage own weekly_reviews" on public.weekly_reviews;
 create policy "Users manage own weekly_reviews" on public.weekly_reviews for all using (auth.uid() = user_id);
+
+alter table public.monthly_reviews enable row level security;
+drop policy if exists "Users manage own monthly_reviews" on public.monthly_reviews;
 create policy "Users manage own monthly_reviews" on public.monthly_reviews for all using (auth.uid() = user_id);
+
+alter table public.daily_capacity enable row level security;
+drop policy if exists "Users manage own daily_capacity" on public.daily_capacity;
 create policy "Users manage own daily_capacity" on public.daily_capacity for all using (auth.uid() = user_id);
+
+alter table public.schedule_overrides enable row level security;
+drop policy if exists "Users manage own schedule_overrides" on public.schedule_overrides;
 create policy "Users manage own schedule_overrides" on public.schedule_overrides for all using (auth.uid() = user_id);
+
+alter table public.daily_plans enable row level security;
+drop policy if exists "Users manage own daily_plans" on public.daily_plans;
 create policy "Users manage own daily_plans" on public.daily_plans for all using (auth.uid() = user_id);
 
 -- Performance Indexes
