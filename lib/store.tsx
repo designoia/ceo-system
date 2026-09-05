@@ -17,6 +17,11 @@ import {
   TaskStatus,
   TaskPriority,
   BusinessCode,
+  CapacitySource,
+  DailyCapacityRecord,
+  ScheduleOverride,
+  DailyPlan,
+  RecommendationResult,
 } from './types';
 import {
   INITIAL_BUSINESSES,
@@ -29,6 +34,7 @@ import {
   INITIAL_ACTIVITY_LOGS,
 } from './seed-data';
 import { getTodayDateString, calculateDaysOverdue } from './utils';
+import { generateDailyRecommendation } from './recommendation-engine';
 
 const STORAGE_KEYS = {
   BUSINESSES: 'ceo_os_businesses_v2',
@@ -43,6 +49,9 @@ const STORAGE_KEYS = {
   WEEKLY_REVIEWS: 'ceo_os_weekly_reviews_v2',
   MONTHLY_REVIEWS: 'ceo_os_monthly_reviews_v2',
   SETTINGS: 'ceo_os_settings_v2',
+  DAILY_CAPACITY: 'ceo_os_daily_capacity_v3',
+  SCHEDULE_OVERRIDES: 'ceo_os_schedule_overrides_v3',
+  DAILY_PLANS: 'ceo_os_daily_plans_v3',
 };
 
 interface StoreContextType {
@@ -64,6 +73,29 @@ interface StoreContextType {
   isOverdueReviewOpen: boolean;
   welcomeBackInfo: { isReturning: boolean; daysMissed: number; lastTask: Task | null } | null;
   mustWinCarryForwardTask: Task | null;
+
+  // Phase 3 Capacity & Planning State
+  todayCapacityMinutes: number;
+  capacitySource: CapacitySource;
+  scheduleOverrides: ScheduleOverride[];
+  dailyPlans: DailyPlan[];
+  energyLevel: 'LOW' | 'NORMAL' | 'HIGH';
+  isTodayDifferentModalOpen: boolean;
+  isMorningPlanOpen: boolean;
+  isTimeAdjustModalOpen: boolean;
+  timeAdjustMode: 'MORE' | 'LESS';
+  dailyRecommendation: RecommendationResult;
+
+  // Phase 3 Capacity & Planning Actions
+  setDailyCapacity: (minutes: number, source: CapacitySource, notes?: string) => void;
+  setScheduleOverride: (blockType: ScheduleOverride['blockType'], isOff: boolean, deltaMinutes: number, name?: string) => void;
+  addExtraTime: (deltaMinutes: number) => void;
+  reduceAvailableTime: (targetMinutes: number) => void;
+  setLowEnergyMode: () => void;
+  acceptDailyPlan: () => void;
+  setTodayDifferentModalOpen: (open: boolean) => void;
+  setMorningPlanOpen: (open: boolean) => void;
+  setTimeAdjustModalOpen: (open: boolean, mode?: 'MORE' | 'LESS') => void;
 
   // Actions
   setQuickAddOpen: (open: boolean) => void;
@@ -93,7 +125,7 @@ interface StoreContextType {
   resolveOverdueTask: (taskId: string, targetStatus: TaskStatus | 'DELETED') => void;
   resolveMustWinCarryForward: (makeTodayMustWin: boolean) => void;
   dismissWelcomeBack: () => void;
-  logActivity: (entityType: 'TASK' | 'PROJECT' | 'SYSTEM', entityId: string, title: string, action: ActivityLog['action'], details?: string) => void;
+  logActivity: (entityType: 'TASK' | 'PROJECT' | 'SYSTEM' | 'CAPACITY' | 'SCHEDULE', entityId: string, title: string, action: ActivityLog['action'], details?: string) => void;
   resetToDemoData: () => void;
   exportDataJSON: () => string;
   exportTasksCSV: () => string;
@@ -139,6 +171,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [monthlyReviews, setMonthlyReviews] = useState<MonthlyReview[]>([]);
   const [settings, setSettings] = useState<UserSettings>(INITIAL_SETTINGS);
 
+  // Phase 3 State
+  const [todayCapacityMinutes, setTodayCapacityMinutes] = useState<number>(45);
+  const [capacitySource, setCapacitySource] = useState<CapacitySource>('DEFAULT');
+  const [scheduleOverrides, setScheduleOverrides] = useState<ScheduleOverride[]>([]);
+  const [dailyPlans, setDailyPlans] = useState<DailyPlan[]>([]);
+  const [energyLevel, setEnergyLevel] = useState<'LOW' | 'NORMAL' | 'HIGH'>('NORMAL');
+  const [isTodayDifferentModalOpen, setTodayDifferentModalOpen] = useState(false);
+  const [isMorningPlanOpen, setMorningPlanOpen] = useState(false);
+  const [isTimeAdjustModalOpen, setIsTimeAdjustModalOpen] = useState(false);
+  const [timeAdjustMode, setTimeAdjustMode] = useState<'MORE' | 'LESS'>('MORE');
+
   const [activeFocusTask, setActiveFocusTask] = useState<Task | null>(null);
   const [focusMode, setFocusMode] = useState<'NORMAL' | 'RESCUE_10MIN' | null>(null);
   const [isQuickAddOpen, setQuickAddOpen] = useState(false);
@@ -149,7 +192,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [mustWinCarryForwardTask, setMustWinCarryForwardTask] = useState<Task | null>(null);
 
   const logActivity = useCallback((
-    entityType: 'TASK' | 'PROJECT' | 'SYSTEM',
+    entityType: 'TASK' | 'PROJECT' | 'SYSTEM' | 'CAPACITY' | 'SCHEDULE',
     entityId: string,
     title: string,
     action: ActivityLog['action'],
@@ -167,7 +210,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setActivityLogs(prev => [newLog, ...prev.slice(0, 99)]);
   }, []);
 
-  // Load and execute timezone-aware daily rollover
+  // Load and execute timezone-aware daily rollover + capacity initialization
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -215,8 +258,40 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setSettings(currentSettings);
       }
 
-      // TIMEZONE-AWARE ROLLOVER LOGIC
       const localTodayStr = getTodayDateString(currentSettings.timezone || 'Asia/Kolkata');
+
+      // Load Phase 3 Daily Capacity for today
+      const storedCapacities = localStorage.getItem(STORAGE_KEYS.DAILY_CAPACITY);
+      if (storedCapacities) {
+        const parsedCaps: DailyCapacityRecord[] = JSON.parse(storedCapacities);
+        const todayCap = parsedCaps.find(c => c.date === localTodayStr);
+        if (todayCap) {
+          setTodayCapacityMinutes(todayCap.capacityMinutes);
+          setCapacitySource(todayCap.source);
+        } else {
+          setTodayCapacityMinutes(currentSettings.dailyWorkCapacityMinutes || 45);
+          setCapacitySource('DEFAULT');
+        }
+      } else {
+        setTodayCapacityMinutes(currentSettings.dailyWorkCapacityMinutes || 45);
+        setCapacitySource('DEFAULT');
+      }
+
+      // Load Phase 3 Schedule Overrides
+      const storedOverrides = localStorage.getItem(STORAGE_KEYS.SCHEDULE_OVERRIDES);
+      if (storedOverrides) {
+        const parsedOverrides: ScheduleOverride[] = JSON.parse(storedOverrides);
+        setScheduleOverrides(parsedOverrides);
+      }
+
+      // Load Phase 3 Daily Plans
+      const storedPlans = localStorage.getItem(STORAGE_KEYS.DAILY_PLANS);
+      if (storedPlans) {
+        const parsedPlans: DailyPlan[] = JSON.parse(storedPlans);
+        setDailyPlans(parsedPlans);
+      }
+
+      // TIMEZONE-AWARE ROLLOVER LOGIC
       const lastActive = currentSettings.lastActiveDate || localTodayStr;
 
       let rolledTasks = [...loadedTasks];
@@ -336,6 +411,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!isLoaded || typeof window === 'undefined') return;
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
   }, [settings, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded || typeof window === 'undefined') return;
+    const localToday = getTodayDateString(settings.timezone || 'Asia/Kolkata');
+    const existing: DailyCapacityRecord[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.DAILY_CAPACITY) || '[]');
+    const filtered = existing.filter(c => c.date !== localToday);
+    filtered.push({
+      id: `cap-${localToday}`,
+      date: localToday,
+      capacityMinutes: todayCapacityMinutes,
+      source: capacitySource,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    localStorage.setItem(STORAGE_KEYS.DAILY_CAPACITY, JSON.stringify(filtered));
+  }, [todayCapacityMinutes, capacitySource, settings.timezone, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded || typeof window === 'undefined') return;
+    localStorage.setItem(STORAGE_KEYS.SCHEDULE_OVERRIDES, JSON.stringify(scheduleOverrides));
+  }, [scheduleOverrides, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded || typeof window === 'undefined') return;
+    localStorage.setItem(STORAGE_KEYS.DAILY_PLANS, JSON.stringify(dailyPlans));
+  }, [dailyPlans, isLoaded]);
 
   // Project Hierarchy & Aggregated Progress Rollup
   const getProjectSubprojects = useCallback((projectId: string): Project[] => {
@@ -785,6 +886,108 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setMustWinCarryForwardTask(null);
   }, [mustWinCarryForwardTask, settings.timezone, updateTask, setMustWin]);
 
+  // Phase 3 Actions & Adaptive Capacity Engine
+  const setDailyCapacity = useCallback((minutes: number, source: CapacitySource, notes?: string) => {
+    setTodayCapacityMinutes(minutes);
+    setCapacitySource(source);
+    logActivity('CAPACITY', `cap-${Date.now()}`, 'Daily Capacity Updated', 'CAPACITY_CHANGED', `Capacity set to ${minutes} min (source: ${source}${notes ? ` - ${notes}` : ''})`);
+  }, [logActivity]);
+
+  const setScheduleOverride = useCallback((
+    blockType: ScheduleOverride['blockType'],
+    isOff: boolean,
+    deltaMinutes: number,
+    name?: string
+  ) => {
+    const localToday = getTodayDateString(settings.timezone || 'Asia/Kolkata');
+    const newOverride: ScheduleOverride = {
+      id: `override-${Date.now()}`,
+      date: localToday,
+      blockType,
+      name,
+      isOff,
+      availableMinutesDelta: deltaMinutes,
+      createdAt: new Date().toISOString(),
+    };
+
+    setScheduleOverrides(prev => {
+      const filtered = prev.filter(o => !(o.date === localToday && o.blockType === blockType));
+      return [...filtered, newOverride];
+    });
+
+    if (isOff && deltaMinutes > 0) {
+      // Add extra time safely with rest buffer
+      const newCapacity = (todayCapacityMinutes || 45) + deltaMinutes;
+      setTodayCapacityMinutes(newCapacity);
+      setCapacitySource('SCHEDULE_CALCULATED');
+    }
+
+    logActivity('SCHEDULE', newOverride.id, `${blockType} Schedule Override`, 'SCHEDULE_OVERRIDE', `${blockType} marked ${isOff ? 'OFF (+time)' : 'ON'}`);
+  }, [settings.timezone, todayCapacityMinutes, logActivity]);
+
+  const addExtraTime = useCallback((deltaMinutes: number) => {
+    const newCap = (todayCapacityMinutes || 45) + deltaMinutes;
+    setTodayCapacityMinutes(newCap);
+    setCapacitySource('EXTRA_TIME');
+    logActivity('CAPACITY', `extra-${Date.now()}`, 'Extra Time Added', 'EXTRA_TIME_ADDED', `Added +${deltaMinutes} min. Total capacity: ${newCap} min`);
+  }, [todayCapacityMinutes, logActivity]);
+
+  const reduceAvailableTime = useCallback((targetMinutes: number) => {
+    setTodayCapacityMinutes(targetMinutes);
+    setCapacitySource('REDUCED_TIME');
+    logActivity('CAPACITY', `reduced-${Date.now()}`, 'Available Time Reduced', 'TIME_REDUCED', `Reduced capacity to ${targetMinutes} min`);
+  }, [logActivity]);
+
+  const setLowEnergyMode = useCallback(() => {
+    setEnergyLevel('LOW');
+    const lowCap = Math.min(todayCapacityMinutes, 20);
+    setTodayCapacityMinutes(lowCap);
+    setCapacitySource('LOW_ENERGY');
+    logActivity('CAPACITY', `low-energy-${Date.now()}`, 'Low Energy Mode Activated', 'LOW_ENERGY_MODE', `Reduced to ${lowCap} min minimum day execution`);
+  }, [todayCapacityMinutes, logActivity]);
+
+  const setTimeAdjustModalOpen = useCallback((open: boolean, mode: 'MORE' | 'LESS' = 'MORE') => {
+    setTimeAdjustMode(mode);
+    setIsTimeAdjustModalOpen(open);
+  }, []);
+
+  const acceptDailyPlan = useCallback(() => {
+    const localToday = getTodayDateString(settings.timezone || 'Asia/Kolkata');
+    const newPlan: DailyPlan = {
+      id: `plan-${Date.now()}`,
+      date: localToday,
+      capacityMinutes: todayCapacityMinutes,
+      plannedMinutes: todayPlannedMinutes,
+      mustWinTaskId: mustWinTask?.id,
+      recommendedTaskIds: optionalTasks.map(t => t.id),
+      status: 'ACCEPTED',
+      energyLevel,
+      generatedAt: new Date().toISOString(),
+      acceptedAt: new Date().toISOString(),
+    };
+
+    setDailyPlans(prev => {
+      const filtered = prev.filter(p => p.date !== localToday);
+      return [...filtered, newPlan];
+    });
+
+    logActivity('SYSTEM', newPlan.id, 'Daily Execution Plan', 'DAILY_PLAN_ACCEPTED', `Accepted plan for ${localToday} (${todayCapacityMinutes} min capacity)`);
+    setMorningPlanOpen(false);
+  }, [settings.timezone, todayCapacityMinutes, todayPlannedMinutes, mustWinTask, optionalTasks, energyLevel, logActivity]);
+
+  // Phase 3 Deterministic Daily Recommendation
+  const dailyRecommendation = useMemo(() => {
+    return generateDailyRecommendation(
+      tasks,
+      projects,
+      businesses,
+      currentMonth,
+      todayCapacityMinutes,
+      settings.timezone || 'Asia/Kolkata',
+      energyLevel === 'LOW'
+    );
+  }, [tasks, projects, businesses, currentMonth, todayCapacityMinutes, settings.timezone, energyLevel]);
+
   const dismissWelcomeBack = useCallback(() => {
     setWelcomeBackInfo(null);
   }, []);
@@ -807,7 +1010,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const exportDataJSON = useCallback(() => {
     const fullBackup = {
       exportedAt: new Date().toISOString(),
-      version: '2.0.0',
+      version: '3.0.0',
       businesses,
       goals,
       months,
@@ -820,9 +1023,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       weeklyReviews,
       monthlyReviews,
       settings,
+      dailyCapacityMinutes: todayCapacityMinutes,
+      scheduleOverrides,
+      dailyPlans,
     };
     return JSON.stringify(fullBackup, null, 2);
-  }, [businesses, goals, months, projects, tasks, taskLogs, activityLogs, scheduleBlocks, dailyCheckins, weeklyReviews, monthlyReviews, settings]);
+  }, [businesses, goals, months, projects, tasks, taskLogs, activityLogs, scheduleBlocks, dailyCheckins, weeklyReviews, monthlyReviews, settings, todayCapacityMinutes, scheduleOverrides, dailyPlans]);
 
   const exportTasksCSV = useCallback(() => {
     const headers = ['Task ID', 'Title', 'Business', 'Project', 'Parent Task', 'Priority', 'Status', 'Is Must-Win', 'Est Min', 'Created At', 'Notes'];
@@ -857,6 +1063,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (data.scheduleBlocks) setScheduleBlocks(data.scheduleBlocks);
       if (data.settings) setSettings(data.settings);
       if (data.activityLogs) setActivityLogs(data.activityLogs);
+      if (data.scheduleOverrides) setScheduleOverrides(data.scheduleOverrides);
+      if (data.dailyPlans) setDailyPlans(data.dailyPlans);
       return true;
     } catch {
       return false;
@@ -882,6 +1090,31 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     isOverdueReviewOpen,
     welcomeBackInfo,
     mustWinCarryForwardTask,
+
+    // Phase 3 state & recommendations
+    todayCapacityMinutes,
+    capacitySource,
+    scheduleOverrides,
+    dailyPlans,
+    energyLevel,
+    isTodayDifferentModalOpen,
+    isMorningPlanOpen,
+    isTimeAdjustModalOpen,
+    timeAdjustMode,
+    dailyRecommendation,
+
+    // Phase 3 actions
+    setDailyCapacity,
+    setScheduleOverride,
+    addExtraTime,
+    reduceAvailableTime,
+    setLowEnergyMode,
+    acceptDailyPlan,
+    setTodayDifferentModalOpen,
+    setMorningPlanOpen,
+    setTimeAdjustModalOpen,
+
+    // Standard Actions
     setQuickAddOpen,
     setOverdueReviewOpen,
     startFocus,

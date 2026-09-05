@@ -6,21 +6,24 @@ import { useStore } from '@/lib/store';
 import { Task } from '@/lib/types';
 
 export function OptionalTasksList() {
-  const { optionalTasks, startFocus, completeTask, setMustWin } = useStore();
+  const { optionalTasks, dailyRecommendation, startFocus, completeTask, setMustWin } = useStore();
+  const nextTasks = dailyRecommendation.nextTasks;
+  const projectBreadcrumbs = dailyRecommendation.projectBreadcrumbs;
 
-  if (optionalTasks.length === 0) return null;
+  const displayTasks = nextTasks.length > 0 ? nextTasks : optionalTasks;
+  if (displayTasks.length === 0) return null;
 
   return (
-    <div className="rounded-2xl border border-border bg-card/60 p-5 backdrop-blur-sm">
-      <div className="flex items-center justify-between pb-3">
+    <div className="rounded-2xl border border-border bg-card/60 p-5 backdrop-blur-sm space-y-3">
+      <div className="flex items-center justify-between pb-1 border-b border-border/60">
         <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-          OPTIONAL (MAX 2)
+          {nextTasks.length > 0 ? `NEXT IN QUEUE (${nextTasks.length})` : 'OPTIONAL TASKS'}
         </h3>
-        <span className="text-[11px] text-muted-foreground">Only if energy permits</span>
+        <span className="text-[11px] text-muted-foreground">Fits within available daily capacity</span>
       </div>
 
       <div className="space-y-2.5">
-        {optionalTasks.map((task: Task) => (
+        {displayTasks.map((task: Task) => (
           <div
             key={task.id}
             className="group flex items-center justify-between rounded-xl border border-border/70 bg-background/50 px-3.5 py-2.5 transition-all hover:border-border hover:bg-background"
@@ -39,7 +42,7 @@ export function OptionalTasksList() {
                   {task.title}
                 </span>
                 <span className="text-[10px] text-muted-foreground font-mono">
-                  {task.businessCode} • {task.estimatedMinutes}m
+                  {projectBreadcrumbs[task.id] || task.businessCode} • {task.estimatedMinutes}m • {task.priority}
                 </span>
               </div>
             </div>

@@ -114,10 +114,22 @@ export interface TaskLog {
 
 export interface ActivityLog {
   id: string;
-  entityType: 'TASK' | 'PROJECT' | 'SYSTEM';
+  entityType: 'TASK' | 'PROJECT' | 'SYSTEM' | 'CAPACITY' | 'SCHEDULE';
   entityId: string;
   title: string;
-  action: 'STARTED' | 'COMPLETED' | 'ROLLED_OVER' | 'STATUS_CHANGED' | 'MUST_WIN_SET';
+  action: 
+    | 'STARTED' 
+    | 'COMPLETED' 
+    | 'ROLLED_OVER' 
+    | 'STATUS_CHANGED' 
+    | 'MUST_WIN_SET'
+    | 'CAPACITY_CHANGED'
+    | 'SCHEDULE_OVERRIDE'
+    | 'EXTRA_TIME_ADDED'
+    | 'TIME_REDUCED'
+    | 'LOW_ENERGY_MODE'
+    | 'DAILY_PLAN_ACCEPTED'
+    | 'RESUME';
   details?: string;
   createdAt: string;
 }
@@ -127,10 +139,71 @@ export interface ScheduleBlock {
   name: string;
   startTime: string; // '08:00'
   endTime: string;   // '16:00'
-  category: 'SCHOOL' | 'TUITION' | 'CLASSES' | 'CEO_BLOCK' | 'REST';
+  category: 'SCHOOL' | 'TUITION' | 'CLASSES' | 'CEO_BLOCK' | 'REST' | 'CUSTOM';
   daysOfWeek: number[]; // 1 = Monday, 7 = Sunday
   isCeoTime: boolean;
   description?: string;
+}
+
+// Phase 3 Daily Planning & Capacity Types
+export type CapacitySource = 
+  | 'DEFAULT' 
+  | 'MANUAL' 
+  | 'SCHEDULE_CALCULATED' 
+  | 'EXTRA_TIME' 
+  | 'REDUCED_TIME' 
+  | 'LOW_ENERGY';
+
+export interface DailyCapacityRecord {
+  id: string;
+  date: string; // 'YYYY-MM-DD'
+  capacityMinutes: number;
+  source: CapacitySource;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ScheduleOverride {
+  id: string;
+  date: string; // 'YYYY-MM-DD'
+  blockType: 'SCHOOL' | 'TUITION' | 'CLASSES' | 'CEO_WORK' | 'CUSTOM';
+  name?: string;
+  isOff: boolean;
+  startTime?: string;
+  endTime?: string;
+  availableMinutesDelta: number; // e.g. +120 when school is off
+  notes?: string;
+  createdAt: string;
+}
+
+export type DailyPlanStatus = 'GENERATED' | 'ACCEPTED' | 'COMPLETED' | 'DISMISSED';
+
+export interface DailyPlan {
+  id: string;
+  date: string;
+  capacityMinutes: number;
+  plannedMinutes: number;
+  mustWinTaskId?: string;
+  recommendedTaskIds: string[];
+  status: DailyPlanStatus;
+  energyLevel?: 'LOW' | 'NORMAL' | 'HIGH';
+  generatedAt: string;
+  acceptedAt?: string;
+  eveningNotes?: string;
+}
+
+export interface RecommendationResult {
+  mustWinTask: Task | null;
+  mustWinReason: string;
+  nextTasks: Task[];
+  optionalTasks: Task[];
+  totalPlannedMinutes: number;
+  capacityMinutes: number;
+  bufferMinutes: number;
+  isOverloaded: boolean;
+  projectBreadcrumbs: Record<string, string>; // taskId -> "Designoia / Prorido / Prorido Website"
+  taskReasons: Record<string, string>; // taskId -> "P1 Priority Due Today"
 }
 
 export interface DailyCheckin {
@@ -183,3 +256,4 @@ export interface UserSettings {
   yesterdayMustWinCompleted?: boolean;
   onboardingCompleted: boolean;
 }
+

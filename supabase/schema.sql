@@ -201,6 +201,53 @@ create table if not exists public.monthly_reviews (
   created_at timestamptz default now()
 );
 
+-- 14. DAILY CAPACITY (Date-Specific Capacity Engine)
+create table if not exists public.daily_capacity (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  date date not null,
+  capacity_minutes int not null default 45,
+  source text not null default 'DEFAULT', -- 'DEFAULT', 'MANUAL', 'SCHEDULE_CALCULATED', 'EXTRA_TIME', 'REDUCED_TIME', 'LOW_ENERGY'
+  notes text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  constraint unique_user_daily_capacity unique (user_id, date)
+);
+
+-- 15. SCHEDULE OVERRIDES (Date-Specific Variances)
+create table if not exists public.schedule_overrides (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  date date not null,
+  block_type text not null, -- 'SCHOOL', 'TUITION', 'CLASSES', 'CEO_WORK', 'CUSTOM'
+  is_off boolean default false,
+  start_time text,
+  end_time text,
+  available_minutes_delta int default 0,
+  notes text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- 16. DAILY PLANS (Deterministic Daily Execution Plans)
+create table if not exists public.daily_plans (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  date date not null,
+  capacity_minutes int not null default 45,
+  planned_minutes int not null default 0,
+  must_win_task_id text,
+  recommended_task_ids jsonb default '[]'::jsonb,
+  status text not null default 'GENERATED', -- 'GENERATED', 'ACCEPTED', 'COMPLETED', 'DISMISSED'
+  energy_level text default 'NORMAL', -- 'LOW', 'NORMAL', 'HIGH'
+  generated_at timestamptz default now(),
+  accepted_at timestamptz,
+  evening_notes text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  constraint unique_user_daily_plan unique (user_id, date)
+);
+
 -- ROW LEVEL SECURITY (RLS)
 alter table public.profiles enable row level security;
 alter table public.settings enable row level security;
@@ -215,6 +262,9 @@ alter table public.schedule_blocks enable row level security;
 alter table public.daily_checkins enable row level security;
 alter table public.weekly_reviews enable row level security;
 alter table public.monthly_reviews enable row level security;
+alter table public.daily_capacity enable row level security;
+alter table public.schedule_overrides enable row level security;
+alter table public.daily_plans enable row level security;
 
 create policy "Users manage own profiles" on public.profiles for all using (auth.uid() = id);
 create policy "Users manage own settings" on public.settings for all using (auth.uid() = user_id);
@@ -229,6 +279,9 @@ create policy "Users manage own schedule_blocks" on public.schedule_blocks for a
 create policy "Users manage own daily_checkins" on public.daily_checkins for all using (auth.uid() = user_id);
 create policy "Users manage own weekly_reviews" on public.weekly_reviews for all using (auth.uid() = user_id);
 create policy "Users manage own monthly_reviews" on public.monthly_reviews for all using (auth.uid() = user_id);
+create policy "Users manage own daily_capacity" on public.daily_capacity for all using (auth.uid() = user_id);
+create policy "Users manage own schedule_overrides" on public.schedule_overrides for all using (auth.uid() = user_id);
+create policy "Users manage own daily_plans" on public.daily_plans for all using (auth.uid() = user_id);
 
 -- Performance Indexes
 create index if not exists idx_tasks_user_status on public.tasks (user_id, status);
@@ -236,3 +289,7 @@ create index if not exists idx_tasks_scheduled_date on public.tasks (user_id, sc
 create index if not exists idx_projects_parent on public.projects (user_id, parent_project_id);
 create index if not exists idx_tasks_parent on public.tasks (user_id, parent_task_id);
 create index if not exists idx_activity_logs_user on public.activity_logs (user_id, created_at desc);
+create index if not exists idx_daily_capacity_date on public.daily_capacity (user_id, date);
+create index if not exists idx_schedule_overrides_date on public.schedule_overrides (user_id, date);
+create index if not exists idx_daily_plans_date on public.daily_plans (user_id, date);
+

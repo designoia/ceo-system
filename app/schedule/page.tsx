@@ -15,9 +15,20 @@ import {
 import { useStore } from '@/lib/store';
 import { ScheduleBlock } from '@/lib/types';
 import { PageTransition } from '@/components/motion/PageTransition';
+import { TodayIsDifferentModal } from '@/components/dashboard/TodayIsDifferentModal';
 
 export default function SchedulePage() {
-  const { scheduleBlocks, updateScheduleBlock, settings, updateSettings, tasks, startFocus } = useStore();
+  const { 
+    scheduleBlocks, 
+    updateScheduleBlock, 
+    settings, 
+    updateSettings, 
+    tasks, 
+    startFocus,
+    scheduleOverrides,
+    todayCapacityMinutes,
+    setTodayDifferentModalOpen
+  } = useStore();
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [editStartTime, setEditStartTime] = useState('');
   const [editEndTime, setEditEndTime] = useState('');
@@ -66,18 +77,44 @@ export default function SchedulePage() {
             Daily Schedule & Windows
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Respecting your fixed commitments (School + Tuition) while protecting your nightly CEO block.
+            Default weekly schedule acts as a baseline. Single-day variations adjust today without changing your recurring routine.
           </p>
         </div>
 
         {/* Realistic Time Summary */}
-        <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-2.5 text-xs">
-          <span className="text-muted-foreground block">Available Business Window:</span>
-          <span className="font-bold text-foreground">
-            ~45 Minutes / Night ({settings.ceoBlockStart} – {settings.ceoBlockEnd})
-          </span>
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-2.5 text-xs flex items-center gap-3">
+          <div>
+            <span className="text-muted-foreground block text-[11px]">Today&apos;s Available Window:</span>
+            <span className="font-bold text-foreground">
+              {todayCapacityMinutes} min available ({settings.ceoBlockStart} – {settings.ceoBlockEnd})
+            </span>
+          </div>
+          <button
+            onClick={() => setTodayDifferentModalOpen(true)}
+            className="rounded-xl bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground hover:opacity-90 shadow-sm transition-all"
+          >
+            Today is Different
+          </button>
         </div>
       </div>
+
+      {/* TODAY'S ACTIVE OVERRIDES (IF ANY) */}
+      {scheduleOverrides.length > 0 && (
+        <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 space-y-2">
+          <div className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>Active Single-Day Overrides (Today Only)</span>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            {scheduleOverrides.map(o => (
+              <span key={o.id} className="rounded-xl border border-border bg-card px-3 py-1.5 font-medium text-foreground flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span>{o.blockType}: {o.isOff ? 'OFF' : 'Modified'} ({o.availableMinutesDelta > 0 ? `+${o.availableMinutesDelta}m free` : ''})</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Schedule Timeline */}
       <div className="space-y-3">
@@ -204,6 +241,8 @@ export default function SchedulePage() {
           ))}
         </div>
       </div>
+
+      <TodayIsDifferentModal />
     </PageTransition>
   );
 }

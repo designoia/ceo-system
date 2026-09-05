@@ -29,7 +29,8 @@ export function MustWinCard() {
     setQuickAddOpen,
     getSubtasks,
     getSubtaskProgress,
-    updateTaskStatus
+    updateTaskStatus,
+    dailyRecommendation,
   } = useStore();
 
   const [isChanging, setIsChanging] = useState(false);
@@ -43,6 +44,8 @@ export function MustWinCard() {
   const business = businesses.find((b) => b.code === mustWinTask?.businessCode);
   const subtasks = mustWinTask ? getSubtasks(mustWinTask.id) : [];
   const subtaskProgress = mustWinTask ? getSubtaskProgress(mustWinTask.id) : { total: 0, done: 0, percent: 0 };
+  const breadcrumb = mustWinTask ? (dailyRecommendation.projectBreadcrumbs[mustWinTask.id] || business?.name || mustWinTask.businessCode) : '';
+  const reasonTag = mustWinTask ? (dailyRecommendation.taskReasons[mustWinTask.id] || dailyRecommendation.mustWinReason) : '';
 
   if (!mustWinTask) {
     return (
@@ -140,10 +143,15 @@ export function MustWinCard() {
       )}
 
       {/* Primary Task Information */}
-      <div className="my-5">
-        {project && (
-          <div className="text-xs font-semibold uppercase tracking-widest text-primary/90 mb-1">
-            {project.name}
+      <div className="my-5 space-y-1.5">
+        {breadcrumb && (
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary/90">
+            <span>{breadcrumb}</span>
+            {reasonTag && (
+              <span className="rounded-full bg-primary/10 border border-primary/20 px-2 py-0.2 text-[10px] lowercase font-mono text-primary">
+                ({reasonTag})
+              </span>
+            )}
           </div>
         )}
 
