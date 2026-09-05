@@ -27,7 +27,7 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { currentMonth, meaningfulDaysThisWeek } = useStore();
+  const { currentMonth, momentumStats } = useStore();
 
   return (
     <aside className="hidden md:flex h-screen w-64 flex-col border-r border-border bg-card/60 p-4 backdrop-blur-md">
@@ -79,10 +79,15 @@ export function Sidebar() {
 
       {/* Momentum Badge & Settings */}
       <div className="border-t border-border pt-4 px-2 space-y-3">
-        <div className="flex items-center justify-between rounded-lg bg-accent/50 px-3 py-2 text-xs">
+        <div className="flex items-center justify-between rounded-xl bg-accent/50 px-3 py-2 text-xs">
           <span className="text-muted-foreground">Momentum</span>
-          <span className="font-semibold text-foreground flex items-center gap-1">
-            🔥 {meaningfulDaysThisWeek} days
+          <span className="font-bold text-foreground flex items-center gap-1 font-mono">
+            🔥 {momentumStats.currentStreak}d
+            {momentumStats.bestStreak > 0 && (
+              <span className="text-[10px] text-muted-foreground font-normal">
+                (Best: {momentumStats.bestStreak}d)
+              </span>
+            )}
           </span>
         </div>
 

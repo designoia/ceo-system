@@ -108,6 +108,7 @@ create table if not exists public.tasks (
   title text not null,
   business_code text not null,
   status text default 'TODAY', -- 'INBOX', 'BACKLOG', 'NEXT', 'THIS_WEEK', 'TODAY', 'OVERDUE', 'DONE', 'BLOCKED'
+  previous_status text default 'TODAY',
   priority text default 'P1', -- 'P1', 'P2', 'P3'
   is_must_win boolean default false,
   estimated_minutes int default 45,
@@ -120,6 +121,8 @@ create table if not exists public.tasks (
   overdue_at timestamptz,
   last_status_change_at timestamptz default now(),
   completed_at timestamptz,
+  is_deleted boolean default false,
+  deleted_at timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

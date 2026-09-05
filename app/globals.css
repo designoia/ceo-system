@@ -53,10 +53,21 @@
   * {
     @apply border-border;
   }
-  body {
+  html, body {
     @apply bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary font-sans;
     font-feature-settings: "rlig" 1, "calt" 1;
+    overflow-x: hidden;
+    touch-action: manipulation;
   }
+}
+
+/* Safe area utilities */
+.safe-bottom {
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 1.25rem));
+}
+
+.safe-top {
+  padding-top: max(1rem, env(safe-area-inset-top, 1rem));
 }
 
 /* Custom subtle scrollbar */
@@ -82,4 +93,16 @@
 
 .focus-glow {
   box-shadow: 0 0 50px -10px hsl(var(--primary) / 0.25);
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

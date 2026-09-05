@@ -2,17 +2,17 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Flame, CheckCircle, ArrowRight, Calendar } from 'lucide-react';
+import { Flame, ArrowRight, Calendar, Info, Trophy } from 'lucide-react';
 import { useStore } from '@/lib/store';
 
 export function MomentumWidget() {
-  const { tasks, meaningfulDaysThisWeek, currentMonth } = useStore();
+  const { tasks, momentumStats, currentMonth } = useStore();
 
   const thisWeekTasks = tasks.filter(
-    (t) => t.status === 'THIS_WEEK' || t.status === 'TODAY' || (t.status === 'DONE' && t.completedAt)
+    (t) => !t.isDeleted && (t.status === 'THIS_WEEK' || t.status === 'TODAY' || (t.status === 'DONE' && t.completedAt))
   );
-  const completedCount = tasks.filter((t) => t.status === 'DONE').length;
-  const totalCount = Math.max(thisWeekTasks.length, 10);
+  const completedCount = tasks.filter((t) => !t.isDeleted && t.status === 'DONE').length;
+  const totalCount = Math.max(thisWeekTasks.length, 1);
   const progressPercent = Math.min(Math.round((completedCount / totalCount) * 100), 100);
 
   return (
@@ -31,7 +31,7 @@ export function MomentumWidget() {
         {/* Progress Bar */}
         <div className="mt-2 h-2.5 w-full rounded-full bg-secondary overflow-hidden">
           <div
-            className="h-full rounded-full bg-primary transition-all duration-500"
+            className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
             style={{ width: `${progressPercent}%` }}
           />
         </div>
@@ -72,27 +72,51 @@ export function MomentumWidget() {
         </Link>
       </div>
 
-      {/* 3. MOMENTUM / MEANINGFUL DAYS */}
+      {/* 3. REAL DATA-DRIVEN MOMENTUM */}
       <div className="rounded-2xl border border-border bg-card/60 p-5 backdrop-blur-sm flex flex-col justify-between">
         <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block pb-1">
-            MOMENTUM
-          </span>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
-              <Flame className="h-4 w-4 fill-current" />
+          <div className="flex items-center justify-between pb-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              MOMENTUM
             </span>
-            <span className="text-sm font-bold text-foreground">
-              {meaningfulDaysThisWeek} meaningful days
-            </span>
+            <div
+              className="group relative cursor-pointer text-muted-foreground hover:text-foreground"
+              title="Counts consecutive days with at least one completed qualifying task in your timezone."
+            >
+              <Info className="h-3.5 w-3.5" />
+            </div>
           </div>
-          <p className="text-[11px] text-muted-foreground mt-1">
-            Tracked by real progress, not streak pressure.
-          </p>
+
+          <div className="flex items-center justify-between mt-2">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/15 text-amber-500 shadow-sm">
+                <Flame className="h-5 w-5 fill-current" />
+              </span>
+              <div>
+                <div className="text-lg font-black tracking-tight text-foreground font-mono">
+                  {momentumStats.currentStreak} {momentumStats.currentStreak === 1 ? 'day' : 'days'}
+                </div>
+                <div className="text-[10px] uppercase font-semibold text-muted-foreground">
+                  Current Streak
+                </div>
+              </div>
+            </div>
+
+            <div className="text-right">
+              <div className="text-xs font-bold text-foreground font-mono flex items-center justify-end gap-1">
+                <Trophy className="h-3 w-3 text-amber-400" />
+                <span>{momentumStats.bestStreak} {momentumStats.bestStreak === 1 ? 'day' : 'days'}</span>
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                Best Momentum
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="mt-2 text-[11px] text-muted-foreground">
-          Ready for tonight's session.
+        <div className="mt-3 text-[11px] text-muted-foreground flex items-center justify-between border-t border-border/50 pt-2">
+          <span>{momentumStats.completedToday ? 'Completed work today' : 'No task completed yet today'}</span>
+          <span className="font-semibold text-foreground">{momentumStats.qualifyingDaysCount} total days</span>
         </div>
       </div>
     </div>

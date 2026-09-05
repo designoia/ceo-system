@@ -85,6 +85,7 @@ export interface Task {
   projectId?: string;
   parentTaskId?: string; // Subtasks support
   status: TaskStatus;
+  previousStatus?: TaskStatus; // Preserved on completion for reliable restore
   priority: TaskPriority;
   isMustWin?: boolean;
   estimatedMinutes: number;
@@ -98,7 +99,22 @@ export interface Task {
   lastStatusChangeAt?: string;
   createdAt: string;
   completedAt?: string;
+  isDeleted?: boolean; // Soft delete protection
+  deletedAt?: string;
   updatedAt?: string;
+}
+
+export interface MomentumStats {
+  currentStreak: number;
+  bestStreak: number;
+  completedDates: string[];
+  todayCompletedCount: number;
+  completedToday: boolean;
+  qualifyingDaysCount: number;
+  totalCompletedTasks: number;
+  isMilestone: boolean;
+  milestoneDays?: number;
+  milestoneValue?: number | null;
 }
 
 export interface TaskLog {
@@ -114,7 +130,7 @@ export interface TaskLog {
 
 export interface ActivityLog {
   id: string;
-  entityType: 'TASK' | 'PROJECT' | 'SYSTEM' | 'CAPACITY' | 'SCHEDULE';
+  entityType: 'TASK' | 'PROJECT' | 'SYSTEM' | 'CAPACITY' | 'SCHEDULE' | 'MOMENTUM';
   entityId: string;
   title: string;
   action: 
@@ -129,6 +145,12 @@ export interface ActivityLog {
     | 'TIME_REDUCED'
     | 'LOW_ENERGY_MODE'
     | 'DAILY_PLAN_ACCEPTED'
+    | 'TASK_COMPLETION_UNDONE'
+    | 'TASK_RESTORED'
+    | 'TASK_SOFT_DELETED'
+    | 'TASK_RESTORED_FROM_TRASH'
+    | 'TASK_PERMANENTLY_DELETED'
+    | 'MOMENTUM_MILESTONE'
     | 'RESUME';
   details?: string;
   createdAt: string;

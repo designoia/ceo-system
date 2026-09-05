@@ -16,11 +16,14 @@ import {
   Clock,
   Globe,
   Activity,
-  CheckCircle2
+  CheckCircle2,
+  Trash2,
+  RotateCcw
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { NotificationService } from '@/lib/notification-service';
 import { PageTransition } from '@/components/motion/PageTransition';
+import { TrashModal } from '@/components/tasks/TrashModal';
 
 const TIMEZONES = [
   { value: 'Asia/Kolkata', label: 'India (IST - Asia/Kolkata)' },
@@ -37,12 +40,14 @@ export default function SettingsPage() {
     updateSettings, 
     businesses, 
     activityLogs,
+    deletedTasks,
     resetToDemoData, 
     exportDataJSON, 
     exportTasksCSV, 
     importDataJSON 
   } = useStore();
 
+  const [isTrashOpen, setIsTrashOpen] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
   const [savedSettingMsg, setSavedSettingMsg] = useState<string | null>(null);
@@ -331,6 +336,27 @@ export default function SettingsPage() {
         )}
       </div>
 
+      {/* TRASH & RECOVERY */}
+      <div className="rounded-3xl border border-border bg-card/60 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <Trash2 className="h-5 w-5 text-muted-foreground" />
+            <h4 className="text-sm font-bold text-foreground">Trash & Soft-Deleted Tasks</h4>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            {deletedTasks.length} {deletedTasks.length === 1 ? 'task' : 'tasks'} currently in trash. Recover accidentally deleted tasks or permanently purge.
+          </p>
+        </div>
+
+        <button
+          onClick={() => setIsTrashOpen(true)}
+          className="flex items-center gap-1.5 rounded-xl border border-border bg-accent px-4 py-2.5 text-xs font-semibold text-foreground hover:bg-accent/80 transition-colors self-start sm:self-auto min-h-[44px]"
+        >
+          <RotateCcw className="h-3.5 w-3.5 text-primary" />
+          <span>Open Trash ({deletedTasks.length})</span>
+        </button>
+      </div>
+
       {/* 5. RESET DATA */}
       <div className="rounded-3xl border border-destructive/20 bg-destructive/5 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -346,12 +372,17 @@ export default function SettingsPage() {
               resetToDemoData();
             }
           }}
-          className="flex items-center gap-1.5 rounded-xl border border-destructive/30 px-4 py-2 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors self-start sm:self-auto"
+          className="flex items-center gap-1.5 rounded-xl border border-destructive/30 px-4 py-2 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors self-start sm:self-auto min-h-[44px]"
         >
           <RefreshCw className="h-3.5 w-3.5" />
           <span>Reset Demo Data</span>
         </button>
       </div>
+
+      <TrashModal
+        isOpen={isTrashOpen}
+        onClose={() => setIsTrashOpen(false)}
+      />
     </PageTransition>
   );
 }

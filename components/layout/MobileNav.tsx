@@ -3,8 +3,9 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, CheckSquare, Clock, FolderKanban, MoreHorizontal } from 'lucide-react';
+import { Home, CheckSquare, Clock, FolderKanban, MoreHorizontal, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useStore } from '@/lib/store';
 
 const MOBILE_ITEMS = [
   { href: '/', label: 'Home', icon: Home },
@@ -16,26 +17,40 @@ const MOBILE_ITEMS = [
 
 export function MobileNav() {
   const pathname = usePathname();
+  const { setQuickAddOpen } = useStore();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center justify-around border-t border-border bg-background/95 px-2 backdrop-blur-lg md:hidden">
-      {MOBILE_ITEMS.map((item) => {
+    <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center justify-around border-t border-border bg-background/95 px-2 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-lg md:hidden">
+      {MOBILE_ITEMS.map((item, idx) => {
         const isActive = pathname === item.href;
         const Icon = item.icon;
+
         return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-              'flex flex-col items-center justify-center gap-1 rounded-lg py-1 px-3 text-[11px] font-medium transition-colors',
-              isActive
-                ? 'text-primary font-semibold'
-                : 'text-muted-foreground hover:text-foreground'
+          <React.Fragment key={item.href}>
+            {idx === 2 && (
+              <button
+                onClick={() => setQuickAddOpen(true)}
+                className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform"
+                title="Quick Add Task"
+                aria-label="Quick Add Task"
+              >
+                <Plus className="h-5 w-5" />
+              </button>
             )}
-          >
-            <Icon className={cn('h-5 w-5', isActive && 'stroke-[2.5]')} />
-            <span>{item.label}</span>
-          </Link>
+
+            <Link
+              href={item.href}
+              className={cn(
+                'flex flex-col items-center justify-center gap-1 rounded-xl py-1 px-2.5 min-h-[44px] min-w-[44px] text-[11px] font-medium transition-colors active:scale-95',
+                isActive
+                  ? 'text-primary font-bold'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Icon className={cn('h-5 w-5', isActive && 'stroke-[2.5]')} />
+              <span>{item.label}</span>
+            </Link>
+          </React.Fragment>
         );
       })}
     </nav>

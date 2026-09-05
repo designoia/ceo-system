@@ -22,6 +22,7 @@ import {
   ScheduleOverride,
   DailyPlan,
   RecommendationResult,
+  MomentumStats,
 } from './types';
 import {
   INITIAL_BUSINESSES,
@@ -35,6 +36,7 @@ import {
 } from './seed-data';
 import { getTodayDateString, calculateDaysOverdue } from './utils';
 import { generateDailyRecommendation } from './recommendation-engine';
+import { calculateMomentum } from './momentum-engine';
 
 const STORAGE_KEYS = {
   BUSINESSES: 'ceo_os_businesses_v2',
@@ -86,6 +88,27 @@ interface StoreContextType {
   timeAdjustMode: 'MORE' | 'LESS';
   dailyRecommendation: RecommendationResult;
 
+  // Phase 4 Task Restoration & Real Momentum State
+  momentumStats: MomentumStats;
+  isRestoreModalOpen: boolean;
+  taskToRestore: Task | null;
+  isTrashModalOpen: boolean;
+  deletedTasks: Task[];
+  isCelebrationOpen: boolean;
+  celebrationMilestone: number | null;
+
+  // Phase 4 Actions
+  undoTaskCompletion: (taskId: string) => void;
+  restoreTask: (taskId: string, targetStatus?: TaskStatus) => void;
+  softDeleteTask: (taskId: string) => void;
+  restoreFromTrash: (taskId: string) => void;
+  permanentlyDeleteTask: (taskId: string) => void;
+  setRestoreModalOpen: (open: boolean) => void;
+  setTaskToRestore: (task: Task | null) => void;
+  setTrashModalOpen: (open: boolean) => void;
+  setCelebrationOpen: (open: boolean) => void;
+  setCelebrationMilestone: (days: number | null) => void;
+
   // Phase 3 Capacity & Planning Actions
   setDailyCapacity: (minutes: number, source: CapacitySource, notes?: string) => void;
   setScheduleOverride: (blockType: ScheduleOverride['blockType'], isOff: boolean, deltaMinutes: number, name?: string) => void;
@@ -125,7 +148,7 @@ interface StoreContextType {
   resolveOverdueTask: (taskId: string, targetStatus: TaskStatus | 'DELETED') => void;
   resolveMustWinCarryForward: (makeTodayMustWin: boolean) => void;
   dismissWelcomeBack: () => void;
-  logActivity: (entityType: 'TASK' | 'PROJECT' | 'SYSTEM' | 'CAPACITY' | 'SCHEDULE', entityId: string, title: string, action: ActivityLog['action'], details?: string) => void;
+  logActivity: (entityType: 'TASK' | 'PROJECT' | 'SYSTEM' | 'CAPACITY' | 'SCHEDULE' | 'MOMENTUM', entityId: string, title: string, action: ActivityLog['action'], details?: string) => void;
   resetToDemoData: () => void;
   exportDataJSON: () => string;
   exportTasksCSV: () => string;
@@ -182,6 +205,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [isTimeAdjustModalOpen, setIsTimeAdjustModalOpen] = useState(false);
   const [timeAdjustMode, setTimeAdjustMode] = useState<'MORE' | 'LESS'>('MORE');
 
+  // Phase 4 Task Restoration & Real Momentum State
+  const [isRestoreModalOpen, setRestoreModalOpen] = useState(false);
+  const [taskToRestore, setTaskToRestore] = useState<Task | null>(null);
+  const [isTrashModalOpen, setTrashModalOpen] = useState(false);
+  const [isCelebrationOpen, setCelebrationOpen] = useState(false);
+  const [celebrationMilestone, setCelebrationMilestone] = useState<number | null>(null);
+
   const [activeFocusTask, setActiveFocusTask] = useState<Task | null>(null);
   const [focusMode, setFocusMode] = useState<'NORMAL' | 'RESCUE_10MIN' | null>(null);
   const [isQuickAddOpen, setQuickAddOpen] = useState(false);
@@ -192,7 +222,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [mustWinCarryForwardTask, setMustWinCarryForwardTask] = useState<Task | null>(null);
 
   const logActivity = useCallback((
-    entityType: 'TASK' | 'PROJECT' | 'SYSTEM' | 'CAPACITY' | 'SCHEDULE',
+    entityType: 'TASK' | 'PROJECT' | 'SYSTEM' | 'CAPACITY' | 'SCHEDULE' | 'MOMENTUM',
     entityId: string,
     title: string,
     action: ActivityLog['action'],
@@ -497,46 +527,54 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [tasks]);
 
   // Computed state
-  const todayTasks = useMemo(() => {
-    return tasks.filter(t => t.status === 'TODAY' && !t.parentTaskId);
+  const deletedTasks = useMemo(() => {
+    return tasks.filter(t => t.isDeleted);
   }, [tasks]);
 
-  const overdueTasks = useMemo(() => {
-    return tasks.filter(t => t.status === 'OVERDUE' && !t.parentTaskId);
+  const activeTasks = useMemo(() => {
+    return tasks.filter(t => !t.isDeleted);
   }, [tasks]);
+
+  const todayTasks = useMemo(() => {
+    return activeTasks.filter(t => t.status === 'TODAY' && !t.parentTaskId);
+  }, [activeTasks]);
+
+  const overdueTasks = useMemo(() => {
+    return activeTasks.filter(t => t.status === 'OVERDUE' && !t.parentTaskId);
+  }, [activeTasks]);
 
   const mustWinTask = useMemo(() => {
     // 1. Explicit must-win
-    const explicit = tasks.find(t => t.isMustWin && t.status !== 'DONE');
+    const explicit = activeTasks.find(t => t.isMustWin && t.status !== 'DONE');
     if (explicit) return explicit;
 
     // 2. Overdue P1 Must-Win Candidate
-    const overdueP1 = tasks.find(t => t.status === 'OVERDUE' && t.priority === 'P1' && !t.parentTaskId);
+    const overdueP1 = activeTasks.find(t => t.status === 'OVERDUE' && t.priority === 'P1' && !t.parentTaskId);
     if (overdueP1) return overdueP1;
 
     // 3. Today P1
-    const todayP1 = tasks.find(t => t.status === 'TODAY' && t.priority === 'P1' && !t.parentTaskId);
+    const todayP1 = activeTasks.find(t => t.status === 'TODAY' && t.priority === 'P1' && !t.parentTaskId);
     if (todayP1) return todayP1;
 
     // 4. Any today task
-    const anyToday = tasks.find(t => t.status === 'TODAY' && !t.parentTaskId);
+    const anyToday = activeTasks.find(t => t.status === 'TODAY' && !t.parentTaskId);
     if (anyToday) return anyToday;
 
     // 5. This week fallback
-    const thisWeekP1 = tasks.find(t => t.status === 'THIS_WEEK' && t.priority === 'P1' && !t.parentTaskId);
+    const thisWeekP1 = activeTasks.find(t => t.status === 'THIS_WEEK' && t.priority === 'P1' && !t.parentTaskId);
     if (thisWeekP1) return thisWeekP1;
 
     return null;
-  }, [tasks]);
+  }, [activeTasks]);
 
   const optionalTasks = useMemo(() => {
     if (!mustWinTask) {
-      return tasks.filter(t => t.status === 'TODAY' && !t.parentTaskId).slice(0, 2);
+      return activeTasks.filter(t => t.status === 'TODAY' && !t.parentTaskId).slice(0, 2);
     }
-    return tasks
+    return activeTasks
       .filter(t => t.status === 'TODAY' && t.id !== mustWinTask.id && !t.parentTaskId)
       .slice(0, 2);
-  }, [tasks, mustWinTask]);
+  }, [activeTasks, mustWinTask]);
 
   const activeProjects = useMemo(() => {
     return projects.filter(p => p.status === 'ACTIVE');
@@ -554,27 +592,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return months.find(m => m.isCurrent) || months[0] || null;
   }, [months]);
 
-  const meaningfulDaysThisWeek = useMemo(() => {
-    const today = new Date();
-    const dayOfWeek = today.getDay() || 7;
-    const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - (dayOfWeek - 1));
-    startOfWeek.setHours(0, 0, 0, 0);
+  // Real data-driven Momentum calculation (consecutive calendar days ending today/yesterday)
+  const momentumStats = useMemo(() => {
+    return calculateMomentum(tasks, settings.timezone || 'Asia/Kolkata');
+  }, [tasks, settings.timezone]);
 
-    const datesWithLogs = new Set(
-      taskLogs
-        .filter(log => new Date(log.completedAt) >= startOfWeek)
-        .map(log => log.completedAt.split('T')[0])
-    );
-
-    tasks
-      .filter(t => t.status === 'DONE' && t.completedAt && new Date(t.completedAt) >= startOfWeek)
-      .forEach(t => {
-        if (t.completedAt) datesWithLogs.add(t.completedAt.split('T')[0]);
-      });
-
-    return Math.max(datesWithLogs.size, 4);
-  }, [taskLogs, tasks]);
+  const meaningfulDaysThisWeek = momentumStats.currentStreak;
 
   // Capacity calculations
   const todayPlannedMinutes = useMemo(() => {
@@ -603,14 +626,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
-    // Mark task done and complete child subtasks if any
+    // Mark task done, record previousStatus for safe restoration, and complete child subtasks if any
     setTasks(prev =>
       prev.map(t => {
         if (t.id === taskId) {
-          return { ...t, status: 'DONE', completedAt: now, isMustWin: false };
+          return { 
+            ...t, 
+            previousStatus: t.status !== 'DONE' ? t.status : (t.previousStatus || 'TODAY'),
+            status: 'DONE', 
+            completedAt: now, 
+            isMustWin: false 
+          };
         }
         if (t.parentTaskId === taskId) {
-          return { ...t, status: 'DONE', completedAt: now };
+          return { 
+            ...t, 
+            previousStatus: t.status !== 'DONE' ? t.status : (t.previousStatus || 'TODAY'),
+            status: 'DONE', 
+            completedAt: now 
+          };
         }
         return t;
       })
@@ -632,37 +666,84 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     logActivity('TASK', taskId, task.title, 'COMPLETED', `Finished in ~${durationMinutes}m`);
 
+    // Check if new completion triggers a milestone
+    const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: 'DONE' as TaskStatus, completedAt: now, isDeleted: false } : t);
+    const newMomentum = calculateMomentum(updatedTasks, settings.timezone || 'Asia/Kolkata');
+    if (newMomentum.isMilestone && newMomentum.milestoneDays) {
+      setCelebrationMilestone(newMomentum.milestoneDays);
+      setCelebrationOpen(true);
+      logActivity('MOMENTUM', `m-${Date.now()}`, `${newMomentum.milestoneDays}-Day Momentum Achieved!`, 'MOMENTUM_MILESTONE', `${newMomentum.milestoneDays} consecutive days with completed work`);
+    }
+
     setActiveFocusTask(null);
     setFocusMode(null);
-  }, [tasks, logActivity]);
+  }, [tasks, settings.timezone, logActivity]);
 
-  const completeRescueAction = useCallback((taskId: string, notes?: string) => {
-    const now = new Date().toISOString();
+  const undoTaskCompletion = useCallback((taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
-    setTaskLogs(prev => [
-      {
-        id: `log-${Date.now()}`,
-        taskId,
-        taskTitle: `${task.title} (Rescue Action: ${task.rescueAction || '10m Action'})`,
-        businessCode: task.businessCode,
-        durationMinutes: 10,
-        mode: 'RESCUE_10MIN',
-        notes,
-        completedAt: now,
-      },
-      ...prev,
-    ]);
+    const targetStatus = task.previousStatus || 'TODAY';
+    setTasks(prev =>
+      prev.map(t => {
+        if (t.id === taskId) {
+          return {
+            ...t,
+            status: targetStatus,
+            completedAt: undefined,
+            lastStatusChangeAt: new Date().toISOString(),
+          };
+        }
+        if (t.parentTaskId === taskId) {
+          return {
+            ...t,
+            status: t.previousStatus || 'TODAY',
+            completedAt: undefined,
+          };
+        }
+        return t;
+      })
+    );
 
-    logActivity('TASK', taskId, task.title, 'COMPLETED', 'Completed 10-minute rescue micro-action');
+    // Remove matching taskLog entry so Momentum recalculates accurately
+    setTaskLogs(prev => prev.filter(l => l.taskId !== taskId));
 
-    setActiveFocusTask(null);
-    setFocusMode(null);
+    logActivity('TASK', taskId, task.title, 'TASK_COMPLETION_UNDONE', `Undid completion → Restored to ${targetStatus}`);
   }, [tasks, logActivity]);
 
-  const setMustWin = useCallback((taskId: string) => {
+  const restoreTask = useCallback((taskId: string, targetStatus?: TaskStatus) => {
     const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const destStatus = targetStatus || task.previousStatus || 'TODAY';
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === taskId
+          ? {
+              ...t,
+              status: destStatus,
+              completedAt: undefined,
+              isDeleted: false,
+              deletedAt: undefined,
+              lastStatusChangeAt: new Date().toISOString(),
+            }
+          : t
+      )
+    );
+
+    // Remove taskLog if it was completed
+    setTaskLogs(prev => prev.filter(l => l.taskId !== taskId));
+
+    logActivity('TASK', taskId, task.title, 'TASK_RESTORED', `Restored to ${destStatus}`);
+    setRestoreModalOpen(false);
+    setTaskToRestore(null);
+  }, [tasks, logActivity]);
+
+  const completeRescueAction = useCallback((taskId: string, notes?: string) => {
+    completeTask(taskId, 10, notes ? `[10-min Rescue] ${notes}` : '[10-min Rescue] Completed');
+  }, [completeTask]);
+
+  const setMustWin = useCallback((taskId: string) => {
     setTasks(prev =>
       prev.map(t => ({
         ...t,
@@ -670,102 +751,129 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         status: t.id === taskId ? 'TODAY' : t.status,
       }))
     );
-    setSettings(prev => ({ ...prev, lastMustWinId: taskId }));
+    const task = tasks.find(t => t.id === taskId);
     if (task) {
-      logActivity('TASK', taskId, task.title, 'MUST_WIN_SET', 'Designated as Today\'s Primary Must-Win');
+      logActivity('TASK', taskId, task.title, 'MUST_WIN_SET', 'Designated as Today’s MUST-WIN');
     }
   }, [tasks, logActivity]);
 
   const updateTaskStatus = useCallback((taskId: string, status: TaskStatus) => {
-    const now = new Date().toISOString();
     const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    if (status === 'DONE') {
+      completeTask(taskId, task.estimatedMinutes);
+      return;
+    }
     setTasks(prev =>
       prev.map(t =>
         t.id === taskId
           ? {
               ...t,
               status,
-              completedAt: status === 'DONE' ? now : undefined,
-              isMustWin: status === 'DONE' ? false : t.isMustWin,
-              lastStatusChangeAt: now,
+              previousStatus: t.status !== 'DONE' ? t.status : t.previousStatus,
+              isMustWin: status === 'TODAY' ? t.isMustWin : false,
+              completedAt: undefined,
+              lastStatusChangeAt: new Date().toISOString(),
             }
           : t
       )
     );
-    if (task) {
-      logActivity('TASK', taskId, task.title, 'STATUS_CHANGED', `Moved: ${task.status} → ${status}`);
-    }
-  }, [tasks, logActivity]);
+    logActivity('TASK', taskId, task.title, 'STATUS_CHANGED', `Status changed to ${status}`);
+  }, [tasks, completeTask, logActivity]);
 
   const addTask = useCallback((taskData: Partial<Task> & { title: string }) => {
     const count = tasks.length + 1;
-    const localToday = getTodayDateString(settings.timezone || 'Asia/Kolkata');
     const newTask: Task = {
       id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       code: `T-${count.toString().padStart(3, '0')}`,
-      title: taskData.title.trim(),
-      businessCode: taskData.businessCode || 'COL',
+      title: taskData.title,
+      businessCode: taskData.businessCode || 'DESIGNOIA',
+      priority: taskData.priority || 'P2',
+      status: taskData.status || 'TODAY',
+      estimatedMinutes: taskData.estimatedMinutes || 45,
+      isMustWin: taskData.isMustWin || false,
       projectId: taskData.projectId,
       parentTaskId: taskData.parentTaskId,
-      status: taskData.status || 'INBOX',
-      priority: taskData.priority || 'P2',
-      isMustWin: taskData.isMustWin || false,
-      estimatedMinutes: taskData.estimatedMinutes || 45,
-      scheduledDate: taskData.status === 'TODAY' ? (taskData.scheduledDate || localToday) : taskData.scheduledDate,
-      scheduledTime: taskData.scheduledTime,
-      dueDate: taskData.dueDate,
+      scheduledDate: taskData.scheduledDate,
       notes: taskData.notes,
-      rescueAction: taskData.rescueAction || `Spend 10 minutes initiating ${taskData.title.trim()}`,
+      blockReason: taskData.blockReason,
+      isDeleted: false,
       createdAt: new Date().toISOString(),
-      lastStatusChangeAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
-
-    if (newTask.isMustWin) {
-      setTasks(prev => [
-        newTask,
-        ...prev.map(t => (t.isMustWin ? { ...t, isMustWin: false } : t)),
-      ]);
-    } else {
-      setTasks(prev => [newTask, ...prev]);
-    }
-
-    logActivity('TASK', newTask.id, newTask.title, 'STATUS_CHANGED', `Created task in ${newTask.status}`);
+    setTasks(prev => [newTask, ...prev]);
+    logActivity('TASK', newTask.id, newTask.title, 'STATUS_CHANGED', `Created task (${newTask.status})`);
     return newTask;
-  }, [tasks.length, settings.timezone, logActivity]);
+  }, [tasks.length, logActivity]);
+
+  const updateTask = useCallback((taskId: string, updates: Partial<Task>) => {
+    setTasks(prev =>
+      prev.map(t => (t.id === taskId ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t))
+    );
+  }, []);
 
   const addSubtask = useCallback((parentTaskId: string, title: string) => {
     const parent = tasks.find(t => t.id === parentTaskId);
-    if (!parent) throw new Error('Parent task not found');
-
+    const count = tasks.length + 1;
     const newSubtask: Task = {
-      id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      parentTaskId,
-      title: title.trim(),
-      businessCode: parent.businessCode,
-      projectId: parent.projectId,
+      id: `sub-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      code: `T-${count.toString().padStart(3, '0')}`,
+      title,
+      businessCode: parent?.businessCode || 'DESIGNOIA',
+      priority: parent?.priority || 'P2',
       status: 'TODAY',
-      priority: parent.priority,
       estimatedMinutes: 15,
+      isMustWin: false,
+      projectId: parent?.projectId,
+      parentTaskId,
+      isDeleted: false,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
-
     setTasks(prev => [...prev, newSubtask]);
     return newSubtask;
   }, [tasks]);
 
-  const updateTask = useCallback((taskId: string, updates: Partial<Task>) => {
+  const softDeleteTask = useCallback((taskId: string) => {
+    const now = new Date().toISOString();
+    const task = tasks.find(t => t.id === taskId);
     setTasks(prev =>
-      prev.map(t => {
-        if (t.id !== taskId) return t;
-        const updated = { ...t, ...updates, updatedAt: new Date().toISOString() };
-        return updated;
-      })
+      prev.map(t =>
+        t.id === taskId || t.parentTaskId === taskId
+          ? { ...t, isDeleted: true, deletedAt: now }
+          : t
+      )
     );
-  }, []);
+    if (task) {
+      logActivity('TASK', taskId, task.title, 'TASK_SOFT_DELETED', 'Moved to Trash (recoverable)');
+    }
+  }, [tasks, logActivity]);
+
+  const restoreFromTrash = useCallback((taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === taskId || t.parentTaskId === taskId
+          ? { ...t, isDeleted: false, deletedAt: undefined }
+          : t
+      )
+    );
+    if (task) {
+      logActivity('TASK', taskId, task.title, 'TASK_RESTORED_FROM_TRASH', 'Restored from Trash to active queue');
+    }
+  }, [tasks, logActivity]);
+
+  const permanentlyDeleteTask = useCallback((taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    setTasks(prev => prev.filter(t => t.id !== taskId && t.parentTaskId !== taskId));
+    if (task) {
+      logActivity('TASK', taskId, task.title, 'TASK_PERMANENTLY_DELETED', 'Permanently deleted task');
+    }
+  }, [tasks, logActivity]);
 
   const deleteTask = useCallback((taskId: string) => {
-    setTasks(prev => prev.filter(t => t.id !== taskId && t.parentTaskId !== taskId));
-  }, []);
+    softDeleteTask(taskId);
+  }, [softDeleteTask]);
 
   const addProject = useCallback((projectData: Omit<Project, 'id' | 'createdAt'>) => {
     const count = projects.length + 1;
@@ -1102,6 +1210,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     isTimeAdjustModalOpen,
     timeAdjustMode,
     dailyRecommendation,
+
+    // Phase 4 Task Restoration & Real Momentum
+    momentumStats,
+    isRestoreModalOpen,
+    taskToRestore,
+    isTrashModalOpen,
+    deletedTasks,
+    isCelebrationOpen,
+    celebrationMilestone,
+    undoTaskCompletion,
+    restoreTask,
+    softDeleteTask,
+    restoreFromTrash,
+    permanentlyDeleteTask,
+    setRestoreModalOpen,
+    setTaskToRestore,
+    setTrashModalOpen,
+    setCelebrationOpen,
+    setCelebrationMilestone,
 
     // Phase 3 actions
     setDailyCapacity,
