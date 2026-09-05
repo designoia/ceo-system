@@ -19,9 +19,11 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
+import { useTaskLifecycle } from '@/lib/hooks/useTaskLifecycle';
 import { Task, TaskStatus, BusinessCode } from '@/lib/types';
 import { formatMinutes } from '@/lib/utils';
 import { PageTransition } from '@/components/motion/PageTransition';
+import { AnimatedCheckmark } from '@/components/motion/AnimatedCheckmark';
 import { RestoreTaskModal } from '@/components/tasks/RestoreTaskModal';
 import { DeleteConfirmationModal } from '@/components/tasks/DeleteConfirmationModal';
 import { TrashModal } from '@/components/tasks/TrashModal';
@@ -247,23 +249,19 @@ export default function TasksPage() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   {/* Left Task Content */}
                   <div className="flex items-start gap-3 overflow-hidden">
-                    <button
-                      onClick={() => {
-                        if (isDone) {
-                          setTaskToRestore(task);
-                        } else {
-                          completeTask(task.id, task.estimatedMinutes);
-                        }
-                      }}
-                      title={isDone ? 'Undo Completion / Restore' : 'Mark Done'}
-                      className={`mt-0.5 shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center -ml-2 rounded-xl transition-colors ${
-                        isDone
-                          ? 'text-emerald-500 hover:text-emerald-400'
-                          : 'text-muted-foreground hover:text-emerald-500'
-                      }`}
-                    >
-                      <CheckCircle2 className="h-5 w-5" />
-                    </button>
+                    <div className="mt-0.5 shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center -ml-2">
+                      <AnimatedCheckmark
+                        checked={isDone}
+                        size={22}
+                        onToggle={() => {
+                          if (isDone) {
+                            setTaskToRestore(task);
+                          } else {
+                            completeTask(task.id, task.estimatedMinutes);
+                          }
+                        }}
+                      />
+                    </div>
 
                     <div className="space-y-1 overflow-hidden">
                       <div className="flex flex-wrap items-center gap-2">

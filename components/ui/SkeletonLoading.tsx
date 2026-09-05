@@ -17,7 +17,7 @@ export function CardSkeleton({ className = '' }: { className?: string }) {
   );
 }
 
-export function TaskRowSkeleton() {
+export function TaskSkeleton() {
   return (
     <div className="animate-pulse flex items-center justify-between rounded-2xl border border-border/60 bg-card/40 p-4">
       <div className="flex items-center gap-3 flex-1">
@@ -31,6 +31,58 @@ export function TaskRowSkeleton() {
         </div>
       </div>
       <div className="h-8 w-20 rounded-xl bg-muted/50 shrink-0" />
+    </div>
+  );
+}
+
+export function ProjectSkeleton() {
+  return (
+    <div className="animate-pulse rounded-2xl border border-border/60 bg-card/40 p-5 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="h-4 w-20 rounded bg-primary/20" />
+        <div className="h-4 w-12 rounded bg-muted/50" />
+      </div>
+      <div className="h-6 w-2/3 rounded bg-muted/80" />
+      <div className="h-3 w-full rounded bg-muted/40" />
+      <div className="h-2 w-full rounded-full bg-muted/30 mt-3" />
+    </div>
+  );
+}
+
+export function GoalSkeleton() {
+  return (
+    <div className="animate-pulse rounded-3xl border border-border/60 bg-card/50 p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="h-4 w-32 rounded bg-primary/20" />
+        <div className="h-6 w-16 rounded-full bg-muted/40" />
+      </div>
+      <div className="h-7 w-4/5 rounded bg-muted/80" />
+      <div className="h-4 w-1/2 rounded bg-muted/40" />
+      <div className="grid grid-cols-3 gap-3 pt-2">
+        <div className="h-16 rounded-2xl bg-muted/30" />
+        <div className="h-16 rounded-2xl bg-muted/30" />
+        <div className="h-16 rounded-2xl bg-muted/30" />
+      </div>
+    </div>
+  );
+}
+
+export function ChartSkeleton() {
+  return (
+    <div className="animate-pulse rounded-2xl border border-border/60 bg-card/40 p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="h-4 w-28 rounded bg-muted/60" />
+        <div className="h-4 w-16 rounded bg-muted/40" />
+      </div>
+      <div className="flex items-end justify-between h-32 gap-2 pt-4">
+        {[40, 70, 55, 90, 65, 80, 100].map((h, i) => (
+          <div
+            key={i}
+            className="flex-1 rounded-t-lg bg-muted/50"
+            style={{ height: `${h}%` }}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -59,9 +111,9 @@ export function DashboardSkeleton() {
       {/* Task list skeleton */}
       <div className="space-y-3">
         <div className="h-4 w-28 rounded bg-muted/60 mb-2" />
-        <TaskRowSkeleton />
-        <TaskRowSkeleton />
-        <TaskRowSkeleton />
+        <TaskSkeleton />
+        <TaskSkeleton />
+        <TaskSkeleton />
       </div>
     </div>
   );
@@ -85,10 +137,10 @@ export function TasksPageSkeleton() {
       </div>
 
       <div className="space-y-3">
-        <TaskRowSkeleton />
-        <TaskRowSkeleton />
-        <TaskRowSkeleton />
-        <TaskRowSkeleton />
+        <TaskSkeleton />
+        <TaskSkeleton />
+        <TaskSkeleton />
+        <TaskSkeleton />
       </div>
     </div>
   );

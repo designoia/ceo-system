@@ -14,6 +14,7 @@ import {
   CheckSquare
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
+import { useTaskLifecycle } from '@/lib/hooks/useTaskLifecycle';
 import { formatMinutes } from '@/lib/utils';
 import { Task } from '@/lib/types';
 
@@ -25,13 +26,13 @@ export function MustWinCard() {
     businesses, 
     startFocus, 
     setMustWin, 
-    completeTask,
     setQuickAddOpen,
     getSubtasks,
     getSubtaskProgress,
     updateTaskStatus,
     dailyRecommendation,
   } = useStore();
+  const { completeWithUndo } = useTaskLifecycle();
 
   const [isChanging, setIsChanging] = useState(false);
   const [showSubtasks, setShowSubtasks] = useState(false);
@@ -251,7 +252,7 @@ export function MustWinCard() {
 
         {/* Quick Complete */}
         <button
-          onClick={() => completeTask(mustWinTask.id, mustWinTask.estimatedMinutes)}
+          onClick={() => completeWithUndo(mustWinTask.id, mustWinTask.estimatedMinutes)}
           title="Mark complete directly"
           className="flex items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-4 py-3.5 text-xs font-semibold text-muted-foreground hover:text-emerald-500 hover:border-emerald-500/30 transition-all"
         >

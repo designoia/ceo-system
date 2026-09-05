@@ -10,6 +10,8 @@ import { FocusModeModal } from '@/components/focus/FocusModeModal';
 import { WelcomeBackModal } from '@/components/dashboard/WelcomeBackModal';
 import { OverdueReviewModal } from '@/components/dashboard/OverdueReviewModal';
 import { MustWinCarryForwardModal } from '@/components/dashboard/MustWinCarryForwardModal';
+import { ToastContainer } from '@/components/motion/ToastContainer';
+import { ConnectionBanner } from '@/components/motion/ConnectionBanner';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -61,12 +63,14 @@ export default function RootLayout({
           {/* Mobile Navigation */}
           <MobileNav />
 
-          {/* Global Modals */}
-          <QuickAddModal />
+          {/* Global Modals & Notifications */}
           <FocusModeModal />
+          <QuickAddModal />
           <WelcomeBackModal />
           <OverdueReviewModal />
           <MustWinCarryForwardModal />
+          <ToastContainer />
+          <ConnectionBanner />
         </StoreProvider>
       </body>
     </html>
