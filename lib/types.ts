@@ -1,10 +1,18 @@
 export type BusinessCode = 'COL' | 'DESIGNOIA' | 'CLIKIXPRESS' | 'PERSONAL';
 
-export type TaskStatus = 'INBOX' | 'BACKLOG' | 'NEXT' | 'THIS_WEEK' | 'TODAY' | 'DONE' | 'BLOCKED';
+export type TaskStatus = 
+  | 'INBOX' 
+  | 'BACKLOG' 
+  | 'NEXT' 
+  | 'THIS_WEEK' 
+  | 'TODAY' 
+  | 'OVERDUE' 
+  | 'DONE' 
+  | 'BLOCKED';
 
 export type TaskPriority = 'P1' | 'P2' | 'P3';
 
-export type ProjectStatus = 'ACTIVE' | 'PAUSED' | 'COMPLETED';
+export type ProjectStatus = 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED';
 
 export type EnergyLevel = 'exhausted' | 'neutral' | 'good' | 'fire';
 
@@ -55,6 +63,7 @@ export interface Project {
   code?: string; // 'P-001'
   name: string;
   businessCode: BusinessCode;
+  parentProjectId?: string; // Optional: Max 1 parent (2 levels total)
   monthYear?: string;
   description: string;
   successDefinition: string;
@@ -63,7 +72,9 @@ export interface Project {
   startDate?: string;
   targetDate?: string;
   relatedGoalId?: string;
+  isArchived?: boolean;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Task {
@@ -72,17 +83,22 @@ export interface Task {
   title: string;
   businessCode: BusinessCode;
   projectId?: string;
+  parentTaskId?: string; // Subtasks support
   status: TaskStatus;
   priority: TaskPriority;
   isMustWin?: boolean;
   estimatedMinutes: number;
   scheduledDate?: string;
   scheduledTime?: string; // '23:15'
+  dueDate?: string;
   notes?: string;
   blockReason?: string;
   rescueAction?: string; // 10-minute rescue version
+  overdueAt?: string;
+  lastStatusChangeAt?: string;
   createdAt: string;
   completedAt?: string;
+  updatedAt?: string;
 }
 
 export interface TaskLog {
@@ -94,6 +110,16 @@ export interface TaskLog {
   mode: 'NORMAL' | 'RESCUE_10MIN' | 'DEEP_WORK';
   notes?: string;
   completedAt: string;
+}
+
+export interface ActivityLog {
+  id: string;
+  entityType: 'TASK' | 'PROJECT' | 'SYSTEM';
+  entityId: string;
+  title: string;
+  action: 'STARTED' | 'COMPLETED' | 'ROLLED_OVER' | 'STATUS_CHANGED' | 'MUST_WIN_SET';
+  details?: string;
+  createdAt: string;
 }
 
 export interface ScheduleBlock {
@@ -143,6 +169,8 @@ export interface MonthlyReview {
 export interface UserSettings {
   userName: string;
   theme: 'dark' | 'light' | 'system';
+  timezone: string; // Default: 'Asia/Kolkata'
+  dailyWorkCapacityMinutes: number; // Default: 45
   morningNotificationTime: string;
   ceoBlockStart: string;
   ceoBlockEnd: string;
@@ -152,5 +180,6 @@ export interface UserSettings {
   audioChimeEnabled: boolean;
   lastActiveDate: string;
   lastMustWinId?: string;
+  yesterdayMustWinCompleted?: boolean;
   onboardingCompleted: boolean;
 }

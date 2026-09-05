@@ -8,8 +8,10 @@ import {
   Clock, 
   CheckCircle2, 
   ChevronDown, 
+  ChevronRight,
   Sparkles,
-  ArrowRight
+  ListTodo,
+  CheckSquare
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { formatMinutes } from '@/lib/utils';
@@ -24,22 +26,27 @@ export function MustWinCard() {
     startFocus, 
     setMustWin, 
     completeTask,
-    setQuickAddOpen
+    setQuickAddOpen,
+    getSubtasks,
+    getSubtaskProgress,
+    updateTaskStatus
   } = useStore();
 
   const [isChanging, setIsChanging] = useState(false);
+  const [showSubtasks, setShowSubtasks] = useState(false);
 
-  // Available alternative tasks for Must-Win selection
   const alternativeTasks = tasks.filter(
-    (t) => t.status !== 'DONE' && (!mustWinTask || t.id !== mustWinTask.id)
+    (t) => t.status !== 'DONE' && (!mustWinTask || t.id !== mustWinTask.id) && !t.parentTaskId
   );
 
   const project = projects.find((p) => p.id === mustWinTask?.projectId);
   const business = businesses.find((b) => b.code === mustWinTask?.businessCode);
+  const subtasks = mustWinTask ? getSubtasks(mustWinTask.id) : [];
+  const subtaskProgress = mustWinTask ? getSubtaskProgress(mustWinTask.id) : { total: 0, done: 0, percent: 0 };
 
   if (!mustWinTask) {
     return (
-      <div className="relative overflow-hidden rounded-2xl border border-dashed border-border bg-card/60 p-8 text-center backdrop-blur-sm">
+      <div className="relative overflow-hidden rounded-3xl border border-dashed border-border bg-card/60 p-8 text-center backdrop-blur-sm">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-3">
           <Target className="h-6 w-6" />
         </div>
@@ -53,14 +60,14 @@ export function MustWinCard() {
             <button
               key={task.id}
               onClick={() => setMustWin(task.id)}
-              className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:border-primary hover:text-primary transition-colors"
+              className="rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:border-primary hover:text-primary transition-colors"
             >
               + {task.title}
             </button>
           ))}
           <button
             onClick={() => setQuickAddOpen(true)}
-            className="rounded-lg bg-primary px-3.5 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            className="rounded-xl bg-primary px-3.5 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm"
           >
             Create Must-Win
           </button>
@@ -70,7 +77,7 @@ export function MustWinCard() {
   }
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border-2 border-primary/40 bg-gradient-to-b from-card via-card to-card/90 p-6 sm:p-8 shadow-xl ceo-card-glow">
+    <div className="relative overflow-hidden rounded-3xl border-2 border-primary/40 bg-gradient-to-b from-card via-card to-card/90 p-6 sm:p-8 shadow-xl ceo-card-glow transition-all">
       {/* Decorative Accent Glow */}
       <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
 
@@ -108,7 +115,7 @@ export function MustWinCard() {
 
       {/* Quick Change Dropdown */}
       {isChanging && (
-        <div className="my-3 rounded-xl border border-border bg-background p-3 shadow-lg animate-in slide-in-from-top-2 duration-150">
+        <div className="my-3 rounded-2xl border border-border bg-background p-3 shadow-lg animate-in slide-in-from-top-2 duration-150">
           <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
             Select Alternate Must-Win:
           </div>
@@ -120,7 +127,7 @@ export function MustWinCard() {
                   setMustWin(task.id);
                   setIsChanging(false);
                 }}
-                className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-left text-xs text-foreground hover:bg-accent transition-colors"
+                className="w-full flex items-center justify-between rounded-xl px-3 py-2 text-left text-xs text-foreground hover:bg-accent transition-colors"
               >
                 <span className="font-medium truncate">{task.title}</span>
                 <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
@@ -148,6 +155,54 @@ export function MustWinCard() {
           <p className="mt-2 text-xs sm:text-sm text-muted-foreground line-clamp-2">
             {mustWinTask.notes}
           </p>
+        )}
+
+        {/* Subtask Rollup Indicator (If subtasks exist) */}
+        {subtasks.length > 0 && (
+          <div className="mt-4 rounded-2xl border border-border/80 bg-background/60 p-3.5 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <button
+                onClick={() => setShowSubtasks(!showSubtasks)}
+                className="flex items-center gap-1.5 font-semibold text-foreground hover:text-primary transition-colors"
+              >
+                <ListTodo className="h-4 w-4 text-primary" />
+                <span>Subtasks ({subtaskProgress.done}/{subtaskProgress.total} complete)</span>
+                <ChevronRight className={`h-3.5 w-3.5 transition-transform ${showSubtasks ? 'rotate-90' : ''}`} />
+              </button>
+              <span className="font-mono text-xs text-muted-foreground">{subtaskProgress.percent}%</span>
+            </div>
+
+            <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-300"
+                style={{ width: `${subtaskProgress.percent}%` }}
+              />
+            </div>
+
+            {showSubtasks && (
+              <div className="pt-2 space-y-2 text-xs">
+                {subtasks.map((sub) => (
+                  <div
+                    key={sub.id}
+                    className="flex items-center justify-between rounded-xl bg-card/80 px-3 py-2 border border-border"
+                  >
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => updateTaskStatus(sub.id, sub.status === 'DONE' ? 'TODAY' : 'DONE')}
+                        className={sub.status === 'DONE' ? 'text-emerald-500' : 'text-muted-foreground hover:text-foreground'}
+                      >
+                        <CheckSquare className="h-3.5 w-3.5" />
+                      </button>
+                      <span className={sub.status === 'DONE' ? 'line-through text-muted-foreground' : 'text-foreground'}>
+                        {sub.title}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground font-mono">{sub.estimatedMinutes}m</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         <div className="mt-4 flex flex-wrap items-center gap-4 text-xs font-medium text-muted-foreground">

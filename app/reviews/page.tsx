@@ -14,6 +14,7 @@ import {
 import { useStore } from '@/lib/store';
 import { getTodayDateString } from '@/lib/utils';
 import { WeeklyReview, MonthlyReview } from '@/lib/types';
+import { PageTransition } from '@/components/motion/PageTransition';
 
 export default function ReviewsPage() {
   const { 
@@ -81,7 +82,7 @@ export default function ReviewsPage() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <PageTransition className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -319,6 +320,6 @@ export default function ReviewsPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageTransition>
   );
 }

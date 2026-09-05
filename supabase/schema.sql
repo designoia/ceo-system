@@ -1,5 +1,5 @@
 -- ==============================================================================
--- CEO OS — DATABASE SCHEMA & ROW LEVEL SECURITY (SUPABASE POSTGRESQL)
+-- CEO OS — COMPLETE DATABASE SCHEMA (PHASE 1 + PHASE 2)
 -- "5-Year Plan → Today's Action"
 -- ==============================================================================
 
@@ -20,6 +20,8 @@ create table if not exists public.settings (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users on delete cascade not null,
   theme text default 'dark',
+  timezone text default 'Asia/Kolkata',
+  daily_work_capacity_minutes int default 45,
   morning_notification_time text default '07:30',
   ceo_block_start text default '23:15',
   ceo_block_end text default '00:00',
@@ -75,48 +77,54 @@ create table if not exists public.months (
   created_at timestamptz default now()
 );
 
--- 6. PROJECTS
+-- 6. PROJECTS (Hierarchical 2-Level)
 create table if not exists public.projects (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users on delete cascade not null,
+  parent_project_id uuid references public.projects(id) on delete cascade,
   code text, -- 'P-001'
   name text not null,
   business_code text not null,
   month_year text,
   description text,
   success_definition text not null,
-  status text default 'ACTIVE', -- 'ACTIVE', 'PAUSED', 'COMPLETED'
+  status text default 'ACTIVE', -- 'ACTIVE', 'PAUSED', 'COMPLETED', 'ARCHIVED'
   priority text default 'P1', -- 'P1', 'P2', 'P3'
   start_date date,
   target_date date,
   related_goal_id text,
+  is_archived boolean default false,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
 
--- 7. TASKS
+-- 7. TASKS (Lifecycle & Subtasks)
 create table if not exists public.tasks (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users on delete cascade not null,
   project_id uuid references public.projects on delete set null,
+  parent_task_id uuid references public.tasks on delete cascade,
   code text, -- 'T-001'
   title text not null,
   business_code text not null,
-  status text default 'TODAY', -- 'INBOX', 'BACKLOG', 'NEXT', 'THIS_WEEK', 'TODAY', 'DONE', 'BLOCKED'
+  status text default 'TODAY', -- 'INBOX', 'BACKLOG', 'NEXT', 'THIS_WEEK', 'TODAY', 'OVERDUE', 'DONE', 'BLOCKED'
   priority text default 'P1', -- 'P1', 'P2', 'P3'
   is_must_win boolean default false,
   estimated_minutes int default 45,
   scheduled_date date default current_date,
   scheduled_time text default '23:15',
+  due_date date,
   notes text,
   block_reason text,
   rescue_action text,
+  overdue_at timestamptz,
+  last_status_change_at timestamptz default now(),
   completed_at timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
 
--- 8. TASK LOGS (Focus Timer & Meaningful Work Execution)
+-- 8. TASK LOGS
 create table if not exists public.task_logs (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users on delete cascade not null,
@@ -129,32 +137,44 @@ create table if not exists public.task_logs (
   completed_at timestamptz default now()
 );
 
--- 9. SCHEDULE BLOCKS
+-- 9. ACTIVITY LOGS
+create table if not exists public.activity_logs (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  entity_type text not null,
+  entity_id text not null,
+  title text not null,
+  action text not null,
+  details text,
+  created_at timestamptz default now()
+);
+
+-- 10. SCHEDULE BLOCKS
 create table if not exists public.schedule_blocks (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users on delete cascade not null,
   name text not null,
-  start_time text not null, -- '08:00'
-  end_time text not null,   -- '16:00'
-  category text not null,   -- 'SCHOOL', 'TUITION', 'CLASSES', 'CEO_BLOCK', 'REST'
+  start_time text not null,
+  end_time text not null,
+  category text not null,
   days_of_week jsonb default '[1,2,3,4,5,6]'::jsonb,
   is_ceo_time boolean default false,
   description text
 );
 
--- 10. DAILY CHECK-INS
+-- 11. DAILY CHECK-INS
 create table if not exists public.daily_checkins (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users on delete cascade not null,
   date date default current_date,
   must_win_completed boolean default false,
-  energy_rating text, -- 'exhausted', 'neutral', 'good', 'fire'
+  energy_rating text,
   missed_reason text,
   accomplishments text,
   created_at timestamptz default now()
 );
 
--- 11. WEEKLY REVIEWS
+-- 12. WEEKLY REVIEWS
 create table if not exists public.weekly_reviews (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users on delete cascade not null,
@@ -167,7 +187,7 @@ create table if not exists public.weekly_reviews (
   created_at timestamptz default now()
 );
 
--- 12. MONTHLY REVIEWS
+-- 13. MONTHLY REVIEWS
 create table if not exists public.monthly_reviews (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users on delete cascade not null,
@@ -181,11 +201,7 @@ create table if not exists public.monthly_reviews (
   created_at timestamptz default now()
 );
 
--- ==============================================================================
--- ROW LEVEL SECURITY (RLS) POLICIES
--- Ensures each user can only read and write their own data
--- ==============================================================================
-
+-- ROW LEVEL SECURITY (RLS)
 alter table public.profiles enable row level security;
 alter table public.settings enable row level security;
 alter table public.businesses enable row level security;
@@ -194,6 +210,7 @@ alter table public.months enable row level security;
 alter table public.projects enable row level security;
 alter table public.tasks enable row level security;
 alter table public.task_logs enable row level security;
+alter table public.activity_logs enable row level security;
 alter table public.schedule_blocks enable row level security;
 alter table public.daily_checkins enable row level security;
 alter table public.weekly_reviews enable row level security;
@@ -207,13 +224,15 @@ create policy "Users manage own months" on public.months for all using (auth.uid
 create policy "Users manage own projects" on public.projects for all using (auth.uid() = user_id);
 create policy "Users manage own tasks" on public.tasks for all using (auth.uid() = user_id);
 create policy "Users manage own task_logs" on public.task_logs for all using (auth.uid() = user_id);
+create policy "Users manage own activity_logs" on public.activity_logs for all using (auth.uid() = user_id);
 create policy "Users manage own schedule_blocks" on public.schedule_blocks for all using (auth.uid() = user_id);
 create policy "Users manage own daily_checkins" on public.daily_checkins for all using (auth.uid() = user_id);
 create policy "Users manage own weekly_reviews" on public.weekly_reviews for all using (auth.uid() = user_id);
 create policy "Users manage own monthly_reviews" on public.monthly_reviews for all using (auth.uid() = user_id);
 
--- Indexes for performance
+-- Performance Indexes
 create index if not exists idx_tasks_user_status on public.tasks (user_id, status);
 create index if not exists idx_tasks_scheduled_date on public.tasks (user_id, scheduled_date);
-create index if not exists idx_projects_user_status on public.projects (user_id, status);
-create index if not exists idx_task_logs_user_date on public.task_logs (user_id, completed_at);
+create index if not exists idx_projects_parent on public.projects (user_id, parent_project_id);
+create index if not exists idx_tasks_parent on public.tasks (user_id, parent_task_id);
+create index if not exists idx_activity_logs_user on public.activity_logs (user_id, created_at desc);

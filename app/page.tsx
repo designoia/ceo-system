@@ -1,29 +1,34 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Sparkles, Moon, Plus } from 'lucide-react';
+import { Moon, AlertCircle } from 'lucide-react';
 import { getGreeting, getFormattedDate } from '@/lib/utils';
 import { MustWinCard } from '@/components/dashboard/MustWinCard';
 import { OptionalTasksList } from '@/components/dashboard/OptionalTasksList';
 import { CeoBlockBanner } from '@/components/dashboard/CeoBlockBanner';
 import { MomentumWidget } from '@/components/dashboard/MomentumWidget';
 import { DailyCheckinModal } from '@/components/dashboard/DailyCheckinModal';
+import { OverdueBanner } from '@/components/dashboard/OverdueBanner';
+import { OverdueReviewModal } from '@/components/dashboard/OverdueReviewModal';
+import { MustWinCarryForwardModal } from '@/components/dashboard/MustWinCarryForwardModal';
+import { CapacityIndicator } from '@/components/dashboard/CapacityIndicator';
+import { PageTransition } from '@/components/motion/PageTransition';
 import { useStore } from '@/lib/store';
 
 export default function HomePage() {
-  const { setQuickAddOpen } = useStore();
+  const { settings } = useStore();
   const [isCheckinOpen, setIsCheckinOpen] = useState(false);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <PageTransition className="space-y-6">
       {/* Date & Greeting Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
           <div className="text-xs font-bold uppercase tracking-widest text-primary">
-            {getGreeting()}
+            {getGreeting(settings.timezone || 'Asia/Kolkata')}
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-            {getFormattedDate()}
+            {getFormattedDate(settings.timezone || 'Asia/Kolkata')}
           </h2>
         </div>
 
@@ -38,6 +43,12 @@ export default function HomePage() {
           </button>
         </div>
       </div>
+
+      {/* OVERDUE TASKS BANNER (IF ANY) */}
+      <OverdueBanner />
+
+      {/* DAILY CAPACITY & TASK OVERLOAD INDICATOR */}
+      <CapacityIndicator />
 
       {/* 1. DOMINANT MUST-WIN HERO CARD */}
       <section aria-label="Today's Must-Win">
@@ -59,11 +70,13 @@ export default function HomePage() {
         <MomentumWidget />
       </section>
 
-      {/* Night Check-in Modal */}
+      {/* Modals */}
       <DailyCheckinModal
         isOpen={isCheckinOpen}
         onClose={() => setIsCheckinOpen(false)}
       />
-    </div>
+      <OverdueReviewModal />
+      <MustWinCarryForwardModal />
+    </PageTransition>
   );
 }

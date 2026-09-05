@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { BusinessCode, Goal, StrategicMonth } from '@/lib/types';
+import { PageTransition } from '@/components/motion/PageTransition';
 
 export default function GoalsPage() {
   const { 
@@ -63,7 +64,7 @@ export default function GoalsPage() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <PageTransition className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -329,6 +330,6 @@ export default function GoalsPage() {
           </form>
         </div>
       )}
-    </div>
+    </PageTransition>
   );
 }
