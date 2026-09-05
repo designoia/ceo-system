@@ -8,7 +8,8 @@ import { MobileNav } from '@/components/layout/MobileNav';
 import { QuickAddModal } from '@/components/layout/QuickAddModal';
 import { FocusModeModal } from '@/components/focus/FocusModeModal';
 import { WelcomeBackModal } from '@/components/dashboard/WelcomeBackModal';
-import { NeverMissTwiceModal } from '@/components/dashboard/NeverMissTwiceModal';
+import { OverdueReviewModal } from '@/components/dashboard/OverdueReviewModal';
+import { MustWinCarryForwardModal } from '@/components/dashboard/MustWinCarryForwardModal';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -64,7 +65,8 @@ export default function RootLayout({
           <QuickAddModal />
           <FocusModeModal />
           <WelcomeBackModal />
-          <NeverMissTwiceModal />
+          <OverdueReviewModal />
+          <MustWinCarryForwardModal />
         </StoreProvider>
       </body>
     </html>
