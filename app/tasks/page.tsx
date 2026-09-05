@@ -33,7 +33,7 @@ const STATUS_COLUMNS: { key: TaskStatus; label: string; icon: React.ComponentTyp
   { key: 'DONE', label: 'Done', icon: CheckCircle2 },
 ];
 
-export function TasksPage() {
+export default function TasksPage() {
   const { 
     tasks, 
     projects, 
@@ -408,5 +408,3 @@ export function TasksPage() {
     </PageTransition>
   );
 }
-
-export default TasksPage;
