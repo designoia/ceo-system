@@ -1,0 +1,219 @@
+-- ==============================================================================
+-- CEO OS — DATABASE SCHEMA & ROW LEVEL SECURITY (SUPABASE POSTGRESQL)
+-- "5-Year Plan → Today's Action"
+-- ==============================================================================
+
+-- Enable UUID extension
+create extension if not exists "uuid-ossp";
+
+-- 1. PROFILES
+create table if not exists public.profiles (
+  id uuid references auth.users on delete cascade primary key,
+  full_name text,
+  timezone text default 'Asia/Kolkata',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- 2. USER SETTINGS
+create table if not exists public.settings (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  theme text default 'dark',
+  morning_notification_time text default '07:30',
+  ceo_block_start text default '23:15',
+  ceo_block_end text default '00:00',
+  default_work_duration int default 45,
+  rescue_mode_duration int default 10,
+  notifications_enabled boolean default true,
+  audio_chime_enabled boolean default true,
+  last_active_date date default current_date,
+  last_must_win_id text,
+  updated_at timestamptz default now(),
+  constraint unique_user_settings unique (user_id)
+);
+
+-- 3. BUSINESSES
+create table if not exists public.businesses (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  code text not null, -- 'COL', 'DESIGNOIA', 'CLIKIXPRESS', 'PERSONAL'
+  name text not null,
+  tagline text,
+  description text,
+  color text default '#3b82f6',
+  icon_name text default 'Briefcase',
+  is_active boolean default true,
+  created_at timestamptz default now()
+);
+
+-- 4. 5-YEAR GOALS
+create table if not exists public.goals (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  business_code text not null,
+  title text not null,
+  category text default 'system', -- 'personal', 'revenue', 'infrastructure', 'scale', 'audience', 'system'
+  target_year int not null,
+  target_metric text,
+  current_metric text,
+  is_completed boolean default false,
+  notes text,
+  created_at timestamptz default now()
+);
+
+-- 5. 60-MONTH STRATEGIC ROADMAP
+create table if not exists public.months (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  year_month text not null, -- '2026-09'
+  focus_title text not null,
+  target_outcome text,
+  kpis jsonb default '[]'::jsonb,
+  definition_of_done text,
+  is_current boolean default false,
+  created_at timestamptz default now()
+);
+
+-- 6. PROJECTS
+create table if not exists public.projects (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  code text, -- 'P-001'
+  name text not null,
+  business_code text not null,
+  month_year text,
+  description text,
+  success_definition text not null,
+  status text default 'ACTIVE', -- 'ACTIVE', 'PAUSED', 'COMPLETED'
+  priority text default 'P1', -- 'P1', 'P2', 'P3'
+  start_date date,
+  target_date date,
+  related_goal_id text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- 7. TASKS
+create table if not exists public.tasks (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  project_id uuid references public.projects on delete set null,
+  code text, -- 'T-001'
+  title text not null,
+  business_code text not null,
+  status text default 'TODAY', -- 'INBOX', 'BACKLOG', 'NEXT', 'THIS_WEEK', 'TODAY', 'DONE', 'BLOCKED'
+  priority text default 'P1', -- 'P1', 'P2', 'P3'
+  is_must_win boolean default false,
+  estimated_minutes int default 45,
+  scheduled_date date default current_date,
+  scheduled_time text default '23:15',
+  notes text,
+  block_reason text,
+  rescue_action text,
+  completed_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- 8. TASK LOGS (Focus Timer & Meaningful Work Execution)
+create table if not exists public.task_logs (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  task_id uuid references public.tasks on delete cascade not null,
+  task_title text not null,
+  business_code text not null,
+  duration_minutes int not null,
+  mode text default 'NORMAL', -- 'NORMAL', 'RESCUE_10MIN', 'DEEP_WORK'
+  notes text,
+  completed_at timestamptz default now()
+);
+
+-- 9. SCHEDULE BLOCKS
+create table if not exists public.schedule_blocks (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  name text not null,
+  start_time text not null, -- '08:00'
+  end_time text not null,   -- '16:00'
+  category text not null,   -- 'SCHOOL', 'TUITION', 'CLASSES', 'CEO_BLOCK', 'REST'
+  days_of_week jsonb default '[1,2,3,4,5,6]'::jsonb,
+  is_ceo_time boolean default false,
+  description text
+);
+
+-- 10. DAILY CHECK-INS
+create table if not exists public.daily_checkins (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  date date default current_date,
+  must_win_completed boolean default false,
+  energy_rating text, -- 'exhausted', 'neutral', 'good', 'fire'
+  missed_reason text,
+  accomplishments text,
+  created_at timestamptz default now()
+);
+
+-- 11. WEEKLY REVIEWS
+create table if not exists public.weekly_reviews (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  week_start date not null,
+  tasks_planned int default 0,
+  tasks_completed int default 0,
+  must_wins_completed int default 0,
+  key_learning text,
+  next_week_one_outcome text not null,
+  created_at timestamptz default now()
+);
+
+-- 12. MONTHLY REVIEWS
+create table if not exists public.monthly_reviews (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references auth.users on delete cascade not null,
+  year_month text not null,
+  major_wins text,
+  major_blockers text,
+  what_to_continue text,
+  what_to_stop text,
+  what_to_change text,
+  revenue_numeric numeric(12, 2) default 0,
+  created_at timestamptz default now()
+);
+
+-- ==============================================================================
+-- ROW LEVEL SECURITY (RLS) POLICIES
+-- Ensures each user can only read and write their own data
+-- ==============================================================================
+
+alter table public.profiles enable row level security;
+alter table public.settings enable row level security;
+alter table public.businesses enable row level security;
+alter table public.goals enable row level security;
+alter table public.months enable row level security;
+alter table public.projects enable row level security;
+alter table public.tasks enable row level security;
+alter table public.task_logs enable row level security;
+alter table public.schedule_blocks enable row level security;
+alter table public.daily_checkins enable row level security;
+alter table public.weekly_reviews enable row level security;
+alter table public.monthly_reviews enable row level security;
+
+create policy "Users manage own profiles" on public.profiles for all using (auth.uid() = id);
+create policy "Users manage own settings" on public.settings for all using (auth.uid() = user_id);
+create policy "Users manage own businesses" on public.businesses for all using (auth.uid() = user_id);
+create policy "Users manage own goals" on public.goals for all using (auth.uid() = user_id);
+create policy "Users manage own months" on public.months for all using (auth.uid() = user_id);
+create policy "Users manage own projects" on public.projects for all using (auth.uid() = user_id);
+create policy "Users manage own tasks" on public.tasks for all using (auth.uid() = user_id);
+create policy "Users manage own task_logs" on public.task_logs for all using (auth.uid() = user_id);
+create policy "Users manage own schedule_blocks" on public.schedule_blocks for all using (auth.uid() = user_id);
+create policy "Users manage own daily_checkins" on public.daily_checkins for all using (auth.uid() = user_id);
+create policy "Users manage own weekly_reviews" on public.weekly_reviews for all using (auth.uid() = user_id);
+create policy "Users manage own monthly_reviews" on public.monthly_reviews for all using (auth.uid() = user_id);
+
+-- Indexes for performance
+create index if not exists idx_tasks_user_status on public.tasks (user_id, status);
+create index if not exists idx_tasks_scheduled_date on public.tasks (user_id, scheduled_date);
+create index if not exists idx_projects_user_status on public.projects (user_id, status);
+create index if not exists idx_task_logs_user_date on public.task_logs (user_id, completed_at);
