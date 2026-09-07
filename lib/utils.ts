@@ -83,3 +83,63 @@ export function calculateDaysOverdue(scheduledDate: string | undefined, todayStr
   const diff = Math.floor((today.getTime() - sched.getTime()) / (1000 * 3600 * 24));
   return Math.max(diff, 1);
 }
+
+export function getCurrentTimeString(timezone: string = 'Asia/Kolkata'): string {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    return formatter.format(new Date());
+  } catch {
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2, '0');
+    const m = String(now.getMinutes()).padStart(2, '0');
+    return `${h}:${m}`;
+  }
+}
+
+export function parseTimeToMinutes(timeStr: string): number {
+  if (!timeStr) return 0;
+  const [hStr, mStr] = timeStr.split(':');
+  const h = parseInt(hStr, 10) || 0;
+  const m = parseInt(mStr, 10) || 0;
+  return h * 60 + m;
+}
+
+export function calculateMinutesBetween(startTime: string, endTime: string): number {
+  if (!startTime || !endTime) return 0;
+  const startMins = parseTimeToMinutes(startTime);
+  let endMins = parseTimeToMinutes(endTime);
+  if (endMins === 0 && (startTime.startsWith('23') || startTime.startsWith('22'))) {
+    // Midnight rollover e.g. 23:15 to 00:00 (midnight = 24:00 = 1440 mins)
+    endMins = 1440;
+  } else if (endMins < startMins) {
+    // Crosses midnight
+    endMins += 1440;
+  }
+  return Math.max(0, endMins - startMins);
+}
+
+export function formatTime12Hour(timeStr: string): string {
+  if (!timeStr) return '';
+  const [hStr, mStr] = timeStr.split(':');
+  let h = parseInt(hStr, 10) || 0;
+  const m = mStr || '00';
+  const ampm = h >= 12 && h < 24 ? 'PM' : 'AM';
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${m} ${ampm}`;
+}
+
+export function addMinutesToTime(startTime: string, minutesToAdd: number): string {
+  if (!startTime) return '00:00';
+  const startMins = parseTimeToMinutes(startTime);
+  const totalMins = (startMins + minutesToAdd) % 1440;
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+

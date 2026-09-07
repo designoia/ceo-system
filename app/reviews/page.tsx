@@ -15,6 +15,7 @@ import { useStore } from '@/lib/store';
 import { getTodayDateString } from '@/lib/utils';
 import { WeeklyReview, MonthlyReview } from '@/lib/types';
 import { PageTransition } from '@/components/motion/PageTransition';
+import { ScheduleAnalyticsCard } from '@/components/schedule/ScheduleAnalyticsCard';
 
 export default function ReviewsPage() {
   const { 
@@ -166,6 +167,9 @@ export default function ReviewsPage() {
               </div>
             </div>
           </div>
+
+          {/* Planned vs Actual Weekly Analytics */}
+          <ScheduleAnalyticsCard />
 
           {/* Weekly Planning Card */}
           <div className="rounded-3xl border border-border bg-card/60 p-6 space-y-4">

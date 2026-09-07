@@ -151,7 +151,13 @@ export interface ActivityLog {
     | 'TASK_RESTORED_FROM_TRASH'
     | 'TASK_PERMANENTLY_DELETED'
     | 'MOMENTUM_MILESTONE'
-    | 'RESUME';
+    | 'RESUME'
+    | 'SCHEDULE_BLOCK_STARTED'
+    | 'SCHEDULE_BLOCK_COMPLETED'
+    | 'SCHEDULE_BLOCK_RESCHEDULED'
+    | 'SCHEDULE_BLOCK_CANCELLED'
+    | 'NIGHT_PLAN_CREATED'
+    | 'NIGHT_REVIEW_COMPLETED';
   details?: string;
   createdAt: string;
 }
@@ -165,6 +171,107 @@ export interface ScheduleBlock {
   daysOfWeek: number[]; // 1 = Monday, 7 = Sunday
   isCeoTime: boolean;
   description?: string;
+}
+
+// Phase 5 Daily Scheduler & Planned vs Actual Types
+export type ScheduleActivityType = 
+  | 'SCHOOL'
+  | 'TUITION'
+  | 'CLASSES'
+  | 'DESIGNOIA'
+  | 'COL'
+  | 'CLIKIXPRESS'
+  | 'PERSONAL'
+  | 'MEETING'
+  | 'ADMIN'
+  | 'DEVELOPMENT'
+  | 'CONTENT'
+  | 'PLANNING'
+  | 'TRAVEL'
+  | 'REST'
+  | 'BUFFER'
+  | 'OTHER';
+
+export type ScheduleStatus = 
+  | 'PLANNED' 
+  | 'IN_PROGRESS' 
+  | 'COMPLETED' 
+  | 'MISSED' 
+  | 'CANCELLED' 
+  | 'RESCHEDULED';
+
+export interface ScheduleEntry {
+  id: string;
+  date: string; // 'YYYY-MM-DD'
+  
+  // Planned Window
+  plannedStartTime: string; // '08:00'
+  plannedEndTime: string;   // '08:50'
+  plannedDurationMinutes: number;
+  
+  // Actual Execution Window
+  actualStartTime?: string; // '08:15'
+  actualEndTime?: string;   // '08:52'
+  actualDurationMinutes?: number;
+  
+  // Content & Categorization
+  title: string;
+  description?: string;
+  activityType: ScheduleActivityType;
+  
+  // Hierarchy Links
+  businessCode?: BusinessCode;
+  projectId?: string;
+  subProjectId?: string;
+  taskId?: string;
+  
+  // Execution Lifecycle
+  status: ScheduleStatus;
+  isMustWin?: boolean;
+  
+  // Context & Remarks
+  remarks?: string;
+  reminderMinutesBefore?: number;
+  
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export type ScheduleDifferenceReason = 
+  | 'UNEXPECTED_WORK'
+  | 'MEETING_DELAY'
+  | 'LOW_ENERGY'
+  | 'SCHOOL_ISSUE'
+  | 'PERSONAL'
+  | 'OTHER';
+
+export interface ScheduleDayReview {
+  id: string;
+  date: string; // 'YYYY-MM-DD'
+  plannedTotalMinutes: number;
+  actualTotalMinutes: number;
+  varianceMinutes: number;
+  planningAccuracyPercent: number;
+  completedBlocksCount: number;
+  missedBlocksCount: number;
+  rescheduledBlocksCount: number;
+  mustWinCompleted: boolean;
+  primaryDifferenceReason?: ScheduleDifferenceReason;
+  remarks?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ScheduleAnalytics {
+  planningAccuracyPercent: number;
+  totalPlannedMinutes: number;
+  totalActualMinutes: number;
+  averageDelayMinutes: number;
+  completedMustWinsCount: number;
+  topDifferenceReason?: ScheduleDifferenceReason;
+  businessActualMinutes: number;
+  schoolTuitionActualMinutes: number;
+  restBufferMinutes: number;
 }
 
 // Phase 3 Daily Planning & Capacity Types
