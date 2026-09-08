@@ -143,3 +143,11 @@ export function addMinutesToTime(startTime: string, minutesToAdd: number): strin
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+export function formatMinutesToTime(totalMins: number): string {
+  const normalized = ((totalMins % 1440) + 1440) % 1440;
+  const h = Math.floor(normalized / 60);
+  const m = normalized % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+

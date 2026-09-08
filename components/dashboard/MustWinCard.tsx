@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Sparkles,
   ListTodo,
-  CheckSquare
+  CheckSquare,
+  CalendarDays
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { useTaskLifecycle } from '@/lib/hooks/useTaskLifecycle';
@@ -26,6 +27,7 @@ export function MustWinCard() {
     businesses, 
     startFocus, 
     setMustWin, 
+    openScheduleModal,
     setQuickAddOpen,
     getSubtasks,
     getSubtaskProgress,
@@ -238,6 +240,16 @@ export function MustWinCard() {
         >
           <Play className="h-4 w-4 fill-current" />
           <span>START (45 MIN)</span>
+        </button>
+
+        {/* Schedule on Calendar */}
+        <button
+          onClick={() => openScheduleModal(mustWinTask)}
+          title="Schedule this Must-Win on Google Calendar"
+          className="flex items-center justify-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3.5 text-xs font-bold text-primary hover:bg-primary/20 transition-all"
+        >
+          <CalendarDays className="h-4 w-4" />
+          <span>SCHEDULE</span>
         </button>
 
         {/* 10-Minute Rescue Mode */}

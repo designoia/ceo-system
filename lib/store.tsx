@@ -28,6 +28,13 @@ import {
   ScheduleActivityType,
   ScheduleDifferenceReason,
   ScheduleAnalytics,
+  GoogleConnection,
+  GoogleTaskListMapping,
+  GoogleTaskMapping,
+  GoogleCalendarMapping,
+  GoogleSyncLog,
+  SyncConflict,
+  ConflictResolutionStrategy,
 } from './types';
 import {
   INITIAL_BUSINESSES,
@@ -40,6 +47,11 @@ import {
   INITIAL_ACTIVITY_LOGS,
   INITIAL_SCHEDULE_ENTRIES,
   INITIAL_SCHEDULE_DAY_REVIEWS,
+  INITIAL_GOOGLE_CONNECTION,
+  INITIAL_TASK_LIST_MAPPINGS,
+  INITIAL_GOOGLE_TASK_MAPPINGS,
+  INITIAL_GOOGLE_CALENDAR_MAPPINGS,
+  INITIAL_GOOGLE_SYNC_LOGS,
 } from './seed-data';
 import { 
   getTodayDateString, 
@@ -51,6 +63,8 @@ import {
 } from './utils';
 import { generateDailyRecommendation } from './recommendation-engine';
 import { calculateMomentum } from './momentum-engine';
+import { GoogleBidirectionalSyncEngine } from './integrations/google/sync';
+import { buildCalendarEventDescription, resolveBusinessAndProjectFromList } from './integrations/google/mappings';
 
 const STORAGE_KEYS = {
   BUSINESSES: 'ceo_os_businesses_v2',
@@ -70,6 +84,11 @@ const STORAGE_KEYS = {
   DAILY_PLANS: 'ceo_os_daily_plans_v3',
   SCHEDULE_ENTRIES: 'ceo_os_schedule_entries_v5',
   SCHEDULE_REVIEWS: 'ceo_os_schedule_reviews_v5',
+  GOOGLE_CONNECTION: 'ceo_os_google_conn_v2',
+  GOOGLE_TASK_LIST_MAPPINGS: 'ceo_os_google_lists_v2',
+  GOOGLE_TASK_MAPPINGS: 'ceo_os_google_tmap_v2',
+  GOOGLE_CALENDAR_MAPPINGS: 'ceo_os_google_cmap_v2',
+  GOOGLE_SYNC_LOGS: 'ceo_os_google_logs_v2',
 };
 
 interface StoreContextType {
@@ -192,7 +211,7 @@ interface StoreContextType {
   resolveOverdueTask: (taskId: string, targetStatus: TaskStatus | 'DELETED') => void;
   resolveMustWinCarryForward: (makeTodayMustWin: boolean) => void;
   dismissWelcomeBack: () => void;
-  logActivity: (entityType: 'TASK' | 'PROJECT' | 'SYSTEM' | 'CAPACITY' | 'SCHEDULE' | 'MOMENTUM', entityId: string, title: string, action: ActivityLog['action'], details?: string) => void;
+  logActivity: (entityType: 'TASK' | 'PROJECT' | 'SYSTEM' | 'CAPACITY' | 'SCHEDULE' | 'MOMENTUM' | 'INTEGRATION', entityId: string, title: string, action: ActivityLog['action'], details?: string) => void;
   resetToDemoData: () => void;
   exportDataJSON: () => string;
   exportTasksCSV: () => string;
@@ -236,6 +255,40 @@ interface StoreContextType {
     mustWinCompleted: boolean;
   };
   scheduleWeeklyAnalytics: ScheduleAnalytics;
+  // Google Integration State
+  googleConnection: GoogleConnection | null;
+  taskListMappings: GoogleTaskListMapping[];
+  googleTaskMappings: GoogleTaskMapping[];
+  googleCalendarMappings: GoogleCalendarMapping[];
+  googleSyncLogs: GoogleSyncLog[];
+  isSyncingGoogle: boolean;
+  syncConflicts: SyncConflict[];
+  taskToSchedule: Task | null;
+  isScheduleTaskModalOpen: boolean;
+  conflictModalOpen: boolean;
+  conflictToResolve: SyncConflict | null;
+  isSyncLogViewerOpen: boolean;
+
+  // Google Integration Actions
+  connectGoogle: (email?: string) => void;
+  disconnectGoogle: () => void;
+  syncGoogleNow: (origin?: 'CEO_OS' | 'GOOGLE_TASKS' | 'GOOGLE_CALENDAR') => Promise<any>;
+  openScheduleModal: (task: Task) => void;
+  closeScheduleModal: () => void;
+  scheduleTaskOnCalendar: (
+    taskId: string,
+    date: string,
+    startTime: string,
+    endTime: string,
+    syncToCalendar?: boolean
+  ) => void;
+  unscheduleTask: (taskId: string) => void;
+  updateTaskListMapping: (mapping: GoogleTaskListMapping) => void;
+  resolveSyncConflict: (conflictId: string, strategy: ConflictResolutionStrategy) => void;
+  setConflictModalOpen: (open: boolean, conflict?: SyncConflict | null) => void;
+  setSyncLogViewerOpen: (open: boolean) => void;
+  simulateExternalGoogleTask: (title: string, listTitle?: string) => void;
+  simulateExternalCalendarEvent: (title: string, date: string, startTime: string, endTime: string) => void;
 }
 
 const StoreContext = createContext<StoreContextType | null>(null);
@@ -253,6 +306,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [weeklyReviews, setWeeklyReviews] = useState<WeeklyReview[]>([]);
   const [monthlyReviews, setMonthlyReviews] = useState<MonthlyReview[]>([]);
   const [settings, setSettings] = useState<UserSettings>(INITIAL_SETTINGS);
+
+  // Google Integration State
+  const [googleConnection, setGoogleConnection] = useState<GoogleConnection | null>(INITIAL_GOOGLE_CONNECTION);
+  const [taskListMappings, setTaskListMappings] = useState<GoogleTaskListMapping[]>(INITIAL_TASK_LIST_MAPPINGS);
+  const [googleTaskMappings, setGoogleTaskMappings] = useState<GoogleTaskMapping[]>(INITIAL_GOOGLE_TASK_MAPPINGS);
+  const [googleCalendarMappings, setGoogleCalendarMappings] = useState<GoogleCalendarMapping[]>(INITIAL_GOOGLE_CALENDAR_MAPPINGS);
+  const [googleSyncLogs, setGoogleSyncLogs] = useState<GoogleSyncLog[]>(INITIAL_GOOGLE_SYNC_LOGS);
+  const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
+  const [syncConflicts, setSyncConflicts] = useState<SyncConflict[]>([]);
+  const [taskToSchedule, setTaskToSchedule] = useState<Task | null>(null);
+  const [isScheduleTaskModalOpen, setIsScheduleTaskModalOpen] = useState(false);
+  const [conflictModalOpen, setConflictModalOpenState] = useState(false);
+  const [conflictToResolve, setConflictToResolve] = useState<SyncConflict | null>(null);
+  const [isSyncLogViewerOpen, setIsSyncLogViewerOpen] = useState(false);
 
   // Phase 5 Daily Scheduler State
   const [scheduleEntries, setScheduleEntries] = useState<ScheduleEntry[]>(INITIAL_SCHEDULE_ENTRIES);
@@ -293,7 +360,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [mustWinCarryForwardTask, setMustWinCarryForwardTask] = useState<Task | null>(null);
 
   const logActivity = useCallback((
-    entityType: 'TASK' | 'PROJECT' | 'SYSTEM' | 'CAPACITY' | 'SCHEDULE' | 'MOMENTUM',
+    entityType: 'TASK' | 'PROJECT' | 'SYSTEM' | 'CAPACITY' | 'SCHEDULE' | 'MOMENTUM' | 'INTEGRATION',
     entityId: string,
     title: string,
     action: ActivityLog['action'],
@@ -406,6 +473,42 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setScheduleDayReviews(JSON.parse(storedSchedReviews));
       } else {
         setScheduleDayReviews(INITIAL_SCHEDULE_DAY_REVIEWS);
+      }
+
+      // Load Google Integration State
+      const storedGoogleConn = localStorage.getItem(STORAGE_KEYS.GOOGLE_CONNECTION);
+      if (storedGoogleConn) {
+        setGoogleConnection(JSON.parse(storedGoogleConn));
+      } else {
+        setGoogleConnection(INITIAL_GOOGLE_CONNECTION);
+      }
+
+      const storedGoogleLists = localStorage.getItem(STORAGE_KEYS.GOOGLE_TASK_LIST_MAPPINGS);
+      if (storedGoogleLists) {
+        setTaskListMappings(JSON.parse(storedGoogleLists));
+      } else {
+        setTaskListMappings(INITIAL_TASK_LIST_MAPPINGS);
+      }
+
+      const storedGoogleTMaps = localStorage.getItem(STORAGE_KEYS.GOOGLE_TASK_MAPPINGS);
+      if (storedGoogleTMaps) {
+        setGoogleTaskMappings(JSON.parse(storedGoogleTMaps));
+      } else {
+        setGoogleTaskMappings(INITIAL_GOOGLE_TASK_MAPPINGS);
+      }
+
+      const storedGoogleCMaps = localStorage.getItem(STORAGE_KEYS.GOOGLE_CALENDAR_MAPPINGS);
+      if (storedGoogleCMaps) {
+        setGoogleCalendarMappings(JSON.parse(storedGoogleCMaps));
+      } else {
+        setGoogleCalendarMappings(INITIAL_GOOGLE_CALENDAR_MAPPINGS);
+      }
+
+      const storedGoogleLogs = localStorage.getItem(STORAGE_KEYS.GOOGLE_SYNC_LOGS);
+      if (storedGoogleLogs) {
+        setGoogleSyncLogs(JSON.parse(storedGoogleLogs));
+      } else {
+        setGoogleSyncLogs(INITIAL_GOOGLE_SYNC_LOGS);
       }
 
       setSelectedScheduleDate(localTodayStr);
@@ -566,6 +669,35 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!isLoaded || typeof window === 'undefined') return;
     localStorage.setItem(STORAGE_KEYS.DAILY_PLANS, JSON.stringify(dailyPlans));
   }, [dailyPlans, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded || typeof window === 'undefined') return;
+    if (googleConnection) {
+      localStorage.setItem(STORAGE_KEYS.GOOGLE_CONNECTION, JSON.stringify(googleConnection));
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.GOOGLE_CONNECTION);
+    }
+  }, [googleConnection, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded || typeof window === 'undefined') return;
+    localStorage.setItem(STORAGE_KEYS.GOOGLE_TASK_LIST_MAPPINGS, JSON.stringify(taskListMappings));
+  }, [taskListMappings, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded || typeof window === 'undefined') return;
+    localStorage.setItem(STORAGE_KEYS.GOOGLE_TASK_MAPPINGS, JSON.stringify(googleTaskMappings));
+  }, [googleTaskMappings, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded || typeof window === 'undefined') return;
+    localStorage.setItem(STORAGE_KEYS.GOOGLE_CALENDAR_MAPPINGS, JSON.stringify(googleCalendarMappings));
+  }, [googleCalendarMappings, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded || typeof window === 'undefined') return;
+    localStorage.setItem(STORAGE_KEYS.GOOGLE_SYNC_LOGS, JSON.stringify(googleSyncLogs));
+  }, [googleSyncLogs, isLoaded]);
 
   // Project Hierarchy & Aggregated Progress Rollup
   const getProjectSubprojects = useCallback((projectId: string): Project[] => {
@@ -1388,6 +1520,397 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setScheduleReviewOpen(false);
   }, [logActivity]);
 
+  // Google Integration Actions
+  const openScheduleModal = useCallback((task: Task) => {
+    setTaskToSchedule(task);
+    setIsScheduleTaskModalOpen(true);
+  }, []);
+
+  const closeScheduleModal = useCallback(() => {
+    setTaskToSchedule(null);
+    setIsScheduleTaskModalOpen(false);
+  }, []);
+
+  const setConflictModalOpen = useCallback((open: boolean, conflict?: SyncConflict | null) => {
+    setConflictToResolve(conflict || null);
+    setConflictModalOpenState(open);
+  }, []);
+
+  const setSyncLogViewerOpen = useCallback((open: boolean) => {
+    setIsSyncLogViewerOpen(open);
+  }, []);
+
+  const connectGoogle = useCallback((email = 'founder.ceo@gmail.com') => {
+    const newConn: GoogleConnection = {
+      id: `conn-${Date.now()}`,
+      userId: 'user-founder-01',
+      googleAccountEmail: email,
+      googleUserId: '109283746501928374',
+      scopes: [
+        'https://www.googleapis.com/auth/tasks',
+        'https://www.googleapis.com/auth/calendar.events',
+        'https://www.googleapis.com/auth/userinfo.email',
+      ],
+      status: 'CONNECTED',
+      isTasksEnabled: true,
+      isCalendarEnabled: true,
+      primaryCalendarId: 'primary',
+      selectedCalendarIds: ['primary'],
+      defaultTaskListId: 'list-inbox',
+      lastSyncAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+    setGoogleConnection(newConn);
+    const newLog: GoogleSyncLog = {
+      id: `log-${Date.now()}-conn`,
+      eventType: 'SYNC_STARTED',
+      details: `Google Account connected (${email}). Ready for bidirectional sync.`,
+      createdAt: new Date().toISOString(),
+    };
+    setGoogleSyncLogs(prev => [newLog, ...prev]);
+    logActivity('INTEGRATION', newConn.id, 'Google Integration Connected', 'GOOGLE_CONNECTED', `Connected as ${email}`);
+  }, [logActivity]);
+
+  const disconnectGoogle = useCallback(() => {
+    setGoogleConnection(prev => prev ? { ...prev, status: 'DISCONNECTED' } : null);
+    const newLog: GoogleSyncLog = {
+      id: `log-${Date.now()}-disconn`,
+      eventType: 'SYNC_COMPLETED',
+      details: 'Google Account disconnected. All CEO OS data preserved.',
+      createdAt: new Date().toISOString(),
+    };
+    setGoogleSyncLogs(prev => [newLog, ...prev]);
+    logActivity('INTEGRATION', 'google-conn', 'Google Integration Disconnected', 'GOOGLE_DISCONNECTED', 'Sync paused. Local CEO OS data preserved.');
+  }, [logActivity]);
+
+  const scheduleTaskOnCalendar = useCallback((
+    taskId: string,
+    date: string,
+    startTime: string,
+    endTime: string,
+    syncToCalendar = true
+  ) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const duration = calculateMinutesBetween(startTime, endTime);
+    const generatedEventId = task.googleCalendarEventId || `gcal-${task.id}-${Date.now()}`;
+
+    // 1. Update Task in CEO OS
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === taskId
+          ? {
+              ...t,
+              scheduledDate: date,
+              scheduledTime: startTime,
+              dueDate: date,
+              estimatedMinutes: duration,
+              googleCalendarEventId: syncToCalendar ? generatedEventId : t.googleCalendarEventId,
+              syncStatus: 'SYNCED',
+              lastSyncedAt: new Date().toISOString(),
+            }
+          : t
+      )
+    );
+
+    // 2. Create or Update ScheduleEntry in Scheduler
+    const existingEntryIndex = scheduleEntries.findIndex(e => e.taskId === taskId && e.date === date);
+    if (existingEntryIndex !== -1) {
+      updateScheduleEntry(scheduleEntries[existingEntryIndex].id, {
+        plannedStartTime: startTime,
+        plannedEndTime: endTime,
+        plannedDurationMinutes: duration,
+        status: 'PLANNED',
+        sourceType: 'CEO_OS_TASK',
+        googleCalendarEventId: syncToCalendar ? generatedEventId : undefined,
+      });
+    } else {
+      const newEntry: ScheduleEntry = {
+        id: `sched-entry-${Date.now()}`,
+        date,
+        plannedStartTime: startTime,
+        plannedEndTime: endTime,
+        plannedDurationMinutes: duration,
+        title: task.title,
+        activityType: (task.businessCode as ScheduleActivityType) || 'DESIGNOIA',
+        businessCode: task.businessCode,
+        projectId: task.projectId,
+        taskId: task.id,
+        status: 'PLANNED',
+        isMustWin: task.isMustWin,
+        sourceType: 'CEO_OS_TASK',
+        googleCalendarEventId: syncToCalendar ? generatedEventId : undefined,
+        googleCalendarId: 'primary',
+        syncStatus: 'SYNCED',
+        createdAt: new Date().toISOString(),
+      };
+      setScheduleEntries(prev => [...prev, newEntry]);
+    }
+
+    // 3. Update Google Calendar Mappings
+    if (syncToCalendar) {
+      setGoogleCalendarMappings(prev => {
+        const filtered = prev.filter(m => m.ceoTaskId !== taskId);
+        return [
+          ...filtered,
+          {
+            id: `gcmap-${Date.now()}`,
+            userId: googleConnection?.userId || 'user-founder-01',
+            ceoTaskId: task.id,
+            calendarId: 'primary',
+            googleEventId: generatedEventId,
+            lastGoogleUpdatedAt: new Date().toISOString(),
+            lastCeoUpdatedAt: new Date().toISOString(),
+            syncStatus: 'SYNCED',
+          },
+        ];
+      });
+
+      const newLog: GoogleSyncLog = {
+        id: `log-${Date.now()}-sched`,
+        eventType: 'GOOGLE_EVENT_CREATED',
+        details: `Scheduled task in Google Calendar: "${task.title}" on ${date} (${startTime}–${endTime})`,
+        entityId: taskId,
+        entityTitle: task.title,
+        createdAt: new Date().toISOString(),
+      };
+      setGoogleSyncLogs(prev => [newLog, ...prev]);
+    }
+
+    logActivity('SCHEDULE', taskId, task.title, 'SCHEDULE_OVERRIDE', `Scheduled for ${date} at ${startTime}–${endTime}${syncToCalendar ? ' (Google Calendar Linked)' : ''}`);
+    closeScheduleModal();
+  }, [tasks, scheduleEntries, googleConnection, updateScheduleEntry, logActivity, closeScheduleModal]);
+
+  const unscheduleTask = useCallback((taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === taskId
+          ? {
+              ...t,
+              scheduledDate: undefined,
+              scheduledTime: undefined,
+              googleCalendarEventId: undefined,
+            }
+          : t
+      )
+    );
+
+    // Cancel matching schedule entry
+    setScheduleEntries(prev =>
+      prev.map(e =>
+        e.taskId === taskId
+          ? { ...e, status: 'CANCELLED', remarks: 'Unscheduled from calendar' }
+          : e
+      )
+    );
+
+    const newLog: GoogleSyncLog = {
+      id: `log-${Date.now()}-unsched`,
+      eventType: 'GOOGLE_EVENT_DELETED',
+      details: `Removed schedule block for task "${task.title}". Google Task preserved.`,
+      entityId: taskId,
+      entityTitle: task.title,
+      createdAt: new Date().toISOString(),
+    };
+    setGoogleSyncLogs(prev => [newLog, ...prev]);
+    logActivity('SCHEDULE', taskId, task.title, 'SCHEDULE_BLOCK_CANCELLED', 'Unscheduled from execution timeline');
+  }, [tasks, logActivity]);
+
+  const updateTaskListMapping = useCallback((mapping: GoogleTaskListMapping) => {
+    setTaskListMappings(prev => {
+      const filtered = prev.filter(m => m.taskListId !== mapping.taskListId);
+      return [...filtered, mapping];
+    });
+  }, []);
+
+  const resolveSyncConflict = useCallback((conflictId: string, strategy: ConflictResolutionStrategy) => {
+    const conflict = syncConflicts.find(c => c.id === conflictId);
+    if (!conflict) return;
+
+    if (strategy === 'KEEP_GOOGLE') {
+      setTasks(prev =>
+        prev.map(t =>
+          t.id === conflict.ceoTaskId
+            ? {
+                ...t,
+                title: conflict.googleTitle,
+                dueDate: conflict.googleDueDate,
+                status: conflict.googleCompleted ? 'DONE' : (t.status === 'DONE' ? 'TODAY' : t.status),
+                syncStatus: 'SYNCED',
+                lastSyncedAt: new Date().toISOString(),
+              }
+            : t
+        )
+      );
+    } else {
+      // KEEP_CEO_OS
+      setTasks(prev =>
+        prev.map(t =>
+          t.id === conflict.ceoTaskId
+            ? {
+                ...t,
+                syncStatus: 'SYNCED',
+                lastSyncedAt: new Date().toISOString(),
+              }
+            : t
+        )
+      );
+    }
+
+    setSyncConflicts(prev => prev.filter(c => c.id !== conflictId));
+    setConflictModalOpen(false);
+
+    const newLog: GoogleSyncLog = {
+      id: `log-${Date.now()}-resolved`,
+      eventType: 'SYNC_COMPLETED',
+      details: `Conflict resolved for "${conflict.taskTitle}" (Strategy: ${strategy})`,
+      entityId: conflict.ceoTaskId,
+      entityTitle: conflict.taskTitle,
+      createdAt: new Date().toISOString(),
+    };
+    setGoogleSyncLogs(prev => [newLog, ...prev]);
+  }, [syncConflicts, setConflictModalOpen]);
+
+  const syncGoogleNow = useCallback(async (origin: 'CEO_OS' | 'GOOGLE_TASKS' | 'GOOGLE_CALENDAR' = 'CEO_OS') => {
+    if (!googleConnection || googleConnection.status !== 'CONNECTED') {
+      return {
+        tasksImported: 0,
+        tasksExported: 0,
+        tasksUpdated: 0,
+        tasksCompleted: 0,
+        eventsImported: 0,
+        eventsExported: 0,
+        eventsUpdated: 0,
+        conflictsDetected: 0,
+        errors: ['Google integration not connected'],
+        lastSyncAt: new Date().toISOString(),
+      };
+    }
+
+    setIsSyncingGoogle(true);
+    try {
+      const output = await GoogleBidirectionalSyncEngine.runSync(
+        {
+          tasks,
+          scheduleEntries,
+          connection: googleConnection,
+          taskListMappings,
+          taskMappings: googleTaskMappings,
+          calendarMappings: googleCalendarMappings,
+        },
+        origin
+      );
+
+      setTasks(output.updatedTasks);
+      setScheduleEntries(output.updatedScheduleEntries);
+      setGoogleTaskMappings(output.updatedTaskMappings);
+      setGoogleCalendarMappings(output.updatedCalendarMappings);
+      setGoogleSyncLogs(prev => [...output.newLogs, ...prev].slice(0, 100));
+
+      if (output.conflicts.length > 0) {
+        setSyncConflicts(output.conflicts);
+        setConflictToResolve(output.conflicts[0]);
+        setConflictModalOpenState(true);
+      }
+
+      setGoogleConnection(prev => prev ? { ...prev, lastSyncAt: new Date().toISOString() } : null);
+      logActivity('INTEGRATION', 'google-sync', 'Google Bidirectional Sync', 'GOOGLE_SYNC_COMPLETED', `Synced ${output.stats.tasksImported} tasks & ${output.stats.eventsImported} calendar commitments`);
+      return output.stats;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const errorLog: GoogleSyncLog = {
+        id: `log-${Date.now()}-err`,
+        eventType: 'SYNC_FAILED',
+        details: `Sync error: ${msg}`,
+        isError: true,
+        createdAt: new Date().toISOString(),
+      };
+      setGoogleSyncLogs(prev => [errorLog, ...prev]);
+      throw err;
+    } finally {
+      setIsSyncingGoogle(false);
+    }
+  }, [googleConnection, tasks, scheduleEntries, taskListMappings, googleTaskMappings, googleCalendarMappings, logActivity]);
+
+  const simulateExternalGoogleTask = useCallback((title: string, listTitle = 'My Tasks') => {
+    const { businessCode, projectId } = resolveBusinessAndProjectFromList(
+      'sim-list',
+      listTitle,
+      taskListMappings
+    );
+
+    const generatedId = `task-gt-${Date.now()}`;
+    const newTask: Task = {
+      id: generatedId,
+      code: `T-GT-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+      title,
+      businessCode,
+      projectId,
+      status: 'INBOX',
+      priority: 'P2',
+      estimatedMinutes: 30,
+      source: 'GOOGLE_TASKS',
+      externalTaskId: `gtask-${Date.now()}`,
+      externalTaskListId: 'sim-list',
+      syncStatus: 'SYNCED',
+      lastSyncedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+
+    setTasks(prev => [newTask, ...prev]);
+    const newLog: GoogleSyncLog = {
+      id: `log-${Date.now()}-sim-task`,
+      eventType: 'GOOGLE_TASK_IMPORTED',
+      details: `Simulated capture from Google Tasks: "${title}" into Inbox`,
+      entityId: generatedId,
+      entityTitle: title,
+      createdAt: new Date().toISOString(),
+    };
+    setGoogleSyncLogs(prev => [newLog, ...prev]);
+    logActivity('TASK', generatedId, title, 'STATUS_CHANGED', 'Imported from Google Tasks into Inbox');
+  }, [taskListMappings, logActivity]);
+
+  const simulateExternalCalendarEvent = useCallback((
+    title: string,
+    date: string,
+    startTime: string,
+    endTime: string
+  ) => {
+    const duration = calculateMinutesBetween(startTime, endTime);
+    const newCommitment: ScheduleEntry = {
+      id: `sched-gcal-sim-${Date.now()}`,
+      date,
+      plannedStartTime: startTime,
+      plannedEndTime: endTime,
+      plannedDurationMinutes: duration,
+      title,
+      activityType: 'MEETING',
+      status: 'PLANNED',
+      sourceType: 'FIXED_COMMITMENT',
+      isExternalCommitment: true,
+      googleCalendarEventId: `gcal-sim-${Date.now()}`,
+      googleCalendarId: 'primary',
+      syncStatus: 'SYNCED',
+      createdAt: new Date().toISOString(),
+    };
+
+    setScheduleEntries(prev => [...prev, newCommitment]);
+    const newLog: GoogleSyncLog = {
+      id: `log-${Date.now()}-sim-event`,
+      eventType: 'GOOGLE_EVENT_CREATED',
+      details: `Imported external Calendar appointment: "${title}" (${startTime}–${endTime})`,
+      entityId: newCommitment.id,
+      entityTitle: title,
+      createdAt: new Date().toISOString(),
+    };
+    setGoogleSyncLogs(prev => [newLog, ...prev]);
+    logActivity('SCHEDULE', newCommitment.id, title, 'STATUS_CHANGED', `Imported Google Calendar commitment: ${startTime}–${endTime}`);
+  }, [logActivity]);
+
   // Phase 5 Daily Scheduler Computed
   const currentDayScheduleEntries = useMemo(() => {
     let list = scheduleEntries.filter(e => e.date === selectedScheduleDate);
@@ -1724,6 +2247,35 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     isCapacityOverloaded,
     isTaskCountOverloaded,
     isTaskCountSeverelyOverloaded,
+
+    // Google Integration State
+    googleConnection,
+    taskListMappings,
+    googleTaskMappings,
+    googleCalendarMappings,
+    googleSyncLogs,
+    isSyncingGoogle,
+    syncConflicts,
+    taskToSchedule,
+    isScheduleTaskModalOpen,
+    conflictModalOpen,
+    conflictToResolve,
+    isSyncLogViewerOpen,
+
+    // Google Integration Actions
+    connectGoogle,
+    disconnectGoogle,
+    syncGoogleNow,
+    openScheduleModal,
+    closeScheduleModal,
+    scheduleTaskOnCalendar,
+    unscheduleTask,
+    updateTaskListMapping,
+    resolveSyncConflict,
+    setConflictModalOpen,
+    setSyncLogViewerOpen,
+    simulateExternalGoogleTask,
+    simulateExternalCalendarEvent,
   };
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

@@ -12,12 +12,15 @@ import {
   RotateCcw, 
   AlertCircle, 
   CheckCircle2,
-  Check
+  Check,
+  Calendar,
+  CalendarDays
 } from 'lucide-react';
 import { Task, TaskStatus, BusinessCode, Project, Business } from '@/lib/types';
-import { formatMinutes } from '@/lib/utils';
+import { formatMinutes, formatTime12Hour } from '@/lib/utils';
 import { AnimatedCheckmark } from '@/components/motion/AnimatedCheckmark';
 import { VARIANTS, MOTION_EASINGS } from '@/lib/motion';
+import { SyncStatusBadge } from '@/components/integrations/SyncStatusBadge';
 
 interface AnimatedTaskCardProps {
   task: Task;
@@ -31,6 +34,7 @@ interface AnimatedTaskCardProps {
   onUndoCompletion: (taskId: string) => void;
   onOpenRestoreModal: (task: Task) => void;
   onOpenDeleteModal: (task: Task) => void;
+  onOpenScheduleModal?: (task: Task) => void;
   onStartFocus: (task: Task) => void;
   onSetMustWin: (taskId: string) => void;
   onUpdateStatus: (taskId: string, status: TaskStatus) => void;
@@ -49,6 +53,7 @@ export function AnimatedTaskCard({
   onUndoCompletion,
   onOpenRestoreModal,
   onOpenDeleteModal,
+  onOpenScheduleModal,
   onStartFocus,
   onSetMustWin,
   onUpdateStatus,
@@ -164,6 +169,24 @@ export function AnimatedTaskCard({
                 {task.priority}
               </motion.span>
 
+              {/* Google Tasks / Calendar Sync Badge */}
+              <SyncStatusBadge
+                source={task.source}
+                syncStatus={task.syncStatus}
+                hasCalendarEvent={Boolean(task.googleCalendarEventId)}
+              />
+
+              {/* Scheduled Time Pill if on Calendar */}
+              {task.scheduledDate && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 border border-primary/20 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                  <Calendar className="h-2.5 w-2.5" />
+                  <span>
+                    {task.scheduledDate === '2026-09-07' ? 'Today' : task.scheduledDate}
+                    {task.scheduledTime ? ` • ${formatTime12Hour(task.scheduledTime)}` : ''}
+                  </span>
+                </span>
+              )}
+
               {project && (
                 <span className="text-[11px] text-muted-foreground truncate">
                   • {project.name}
@@ -233,6 +256,19 @@ export function AnimatedTaskCard({
             </div>
           ) : (
             <>
+              {/* Schedule Button */}
+              {onOpenScheduleModal && (
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => onOpenScheduleModal(task)}
+                  className="flex items-center gap-1 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/20 transition-colors shadow-sm min-h-[44px]"
+                  title="Schedule on Calendar"
+                >
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  <span>Schedule</span>
+                </motion.button>
+              )}
+
               {!task.isMustWin && (
                 <motion.button
                   whileTap={{ scale: 0.95 }}

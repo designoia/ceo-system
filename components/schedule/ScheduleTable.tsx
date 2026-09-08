@@ -248,12 +248,28 @@ export function ScheduleTable({ onEditBlock, onRescheduleBlock }: ScheduleTableP
                               {entry.title}
                             </h4>
 
-                            {entry.isMustWin && (
-                              <span className="shrink-0 flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-extrabold text-amber-400">
-                                <Star className="h-3 w-3 fill-amber-400" />
-                                <span>MUST-WIN</span>
-                              </span>
-                            )}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {entry.sourceType === 'FIXED_COMMITMENT' && (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 text-[9px] font-bold text-blue-400">
+                                  <Calendar className="h-2.5 w-2.5" />
+                                  <span>Google Calendar</span>
+                                </span>
+                              )}
+
+                              {entry.googleCalendarEventId && entry.sourceType === 'CEO_OS_TASK' && (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400">
+                                  <Check className="h-2.5 w-2.5" />
+                                  <span>GCal Linked</span>
+                                </span>
+                              )}
+
+                              {entry.isMustWin && (
+                                <span className="flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-extrabold text-amber-400">
+                                  <Star className="h-3 w-3 fill-amber-400" />
+                                  <span>MUST-WIN</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           {entry.description && (

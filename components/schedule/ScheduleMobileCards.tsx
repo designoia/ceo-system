@@ -173,8 +173,22 @@ export function ScheduleMobileCards({ onEditBlock, onRescheduleBlock, onAddNewBl
               {/* PLANNED CARD */}
               <div className="rounded-2xl border border-border/60 bg-background/50 p-3 space-y-1">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    PLANNED
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      PLANNED
+                    </span>
+                    {entry.sourceType === 'FIXED_COMMITMENT' && (
+                      <span className="inline-flex items-center gap-1 rounded bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.2 text-[9px] font-bold text-blue-400">
+                        <Calendar className="h-2.5 w-2.5" />
+                        <span>Google Calendar</span>
+                      </span>
+                    )}
+                    {entry.googleCalendarEventId && entry.sourceType === 'CEO_OS_TASK' && (
+                      <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.2 text-[9px] font-bold text-emerald-400">
+                        <CheckCircle2 className="h-2.5 w-2.5" />
+                        <span>GCal</span>
+                      </span>
+                    )}
                   </div>
                   {entry.isMustWin && (
                     <span className="flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[9px] font-extrabold text-amber-400">

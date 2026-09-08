@@ -18,6 +18,7 @@ import { MorningPlanModal } from '@/components/dashboard/MorningPlanModal';
 import { EveningReflectionModal } from '@/components/dashboard/EveningReflectionModal';
 import { PlanTomorrowModal } from '@/components/schedule/PlanTomorrowModal';
 import { ScheduleReviewModal } from '@/components/schedule/ScheduleReviewModal';
+import { GoogleSyncSummaryWidget } from '@/components/dashboard/GoogleSyncSummaryWidget';
 import { PageTransition } from '@/components/motion/PageTransition';
 import { useStore } from '@/lib/store';
 
@@ -68,6 +69,11 @@ export default function HomePage() {
 
       {/* OVERDUE TASKS BANNER (IF ANY) */}
       <OverdueBanner />
+
+      {/* GOOGLE INTEGRATION SYNC SUMMARY */}
+      <section aria-label="Google Sync Status">
+        <GoogleSyncSummaryWidget />
+      </section>
 
       {/* 1. PHASE 5 DAILY SCHEDULE PREVIEW WIDGET */}
       <section aria-label="Today's Schedule">

@@ -14,6 +14,10 @@ import { MilestoneCelebration } from '@/components/feedback/MilestoneCelebration
 import { ToastContainer } from '@/components/motion/ToastContainer';
 import { ConnectionBanner } from '@/components/motion/ConnectionBanner';
 
+import { ScheduleTaskModal } from '@/components/schedule/ScheduleTaskModal';
+import { ConflictResolutionModal } from '@/components/integrations/ConflictResolutionModal';
+import { SyncLogViewerModal } from '@/components/integrations/SyncLogViewerModal';
+
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
@@ -71,6 +75,9 @@ export default function RootLayout({
           <OverdueReviewModal />
           <MustWinCarryForwardModal />
           <MilestoneCelebration />
+          <ScheduleTaskModal />
+          <ConflictResolutionModal />
+          <SyncLogViewerModal />
           <ToastContainer />
           <ConnectionBanner />
         </StoreProvider>

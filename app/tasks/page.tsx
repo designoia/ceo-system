@@ -47,6 +47,7 @@ export default function TasksPage() {
     startFocus, 
     completeTask, 
     undoTaskCompletion,
+    openScheduleModal,
     addSubtask,
     getSubtasks,
     getSubtaskProgress,
@@ -283,6 +284,7 @@ export default function TasksPage() {
                   onUndoCompletion={(id) => undoTaskCompletion(id)}
                   onOpenRestoreModal={(t) => setTaskToRestore(t)}
                   onOpenDeleteModal={(t) => setTaskToDelete(t)}
+                  onOpenScheduleModal={(t) => openScheduleModal(t)}
                   onStartFocus={(t) => startFocus(t, 'NORMAL')}
                   onSetMustWin={(id) => setMustWin(id)}
                   onUpdateStatus={(id, status) => updateTaskStatus(id, status)}

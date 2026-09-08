@@ -1,4 +1,20 @@
-import { Business, Goal, StrategicMonth, Project, Task, ScheduleBlock, UserSettings, ActivityLog, ScheduleEntry, ScheduleDayReview } from './types';
+import { 
+  Business, 
+  Goal, 
+  StrategicMonth, 
+  Project, 
+  Task, 
+  ScheduleBlock, 
+  UserSettings, 
+  ActivityLog, 
+  ScheduleEntry, 
+  ScheduleDayReview,
+  GoogleConnection,
+  GoogleTaskListMapping,
+  GoogleTaskMapping,
+  GoogleCalendarMapping,
+  GoogleSyncLog
+} from './types';
 
 export const INITIAL_BUSINESSES: Business[] = [
   {
@@ -490,7 +506,7 @@ export const INITIAL_PROJECTS: Project[] = [
 ];
 
 export const INITIAL_TASKS: Task[] = [
-  // 1. MUST-WIN TODAY
+  // 1. MUST-WIN TODAY (Linked to Google Tasks & Scheduled in Google Calendar)
   {
     id: 'task-prorido-home',
     code: 'T-001',
@@ -501,11 +517,19 @@ export const INITIAL_TASKS: Task[] = [
     priority: 'P1',
     isMustWin: true,
     estimatedMinutes: 45,
-    scheduledDate: '2026-09-06',
+    scheduledDate: '2026-09-07',
     scheduledTime: '23:15',
-    dueDate: '2026-09-06',
+    dueDate: '2026-09-07',
     notes: 'Implement hero section, live portfolio previews, and interactive conversion calculator.',
     rescueAction: 'Review homepage hero typography and test mobile responsive layout.',
+    source: 'CEO_OS',
+    externalTaskId: 'gtask-prorido-home-01',
+    externalTaskListId: 'list-prorido',
+    googleCalendarEventId: 'gcal-prorido-home-01',
+    googleCalendarId: 'primary',
+    googleEtag: '"etag-gtask-01"',
+    syncStatus: 'SYNCED',
+    lastSyncedAt: '2026-09-07T08:00:00Z',
     createdAt: '2026-09-05T10:00:00Z',
   },
   // Subtasks for Prorido Homepage
@@ -556,7 +580,45 @@ export const INITIAL_TASKS: Task[] = [
     createdAt: '2026-09-05T10:20:00Z',
   },
 
-  // 2. OPTIONAL TASKS TODAY
+  // 2. IMPORTED FROM GOOGLE TASKS (Universal Capture Inbox)
+  {
+    id: 'task-gt-pagespeed',
+    code: 'T-GT-01',
+    title: 'Check Prorido PageSpeed',
+    businessCode: 'DESIGNOIA',
+    projectId: 'proj-prorido-web',
+    status: 'INBOX',
+    priority: 'P2',
+    estimatedMinutes: 20,
+    notes: 'Run Lighthouse mobile audit on deployed Vercel URL and check LCP score.',
+    source: 'GOOGLE_TASKS',
+    externalTaskId: 'gtask-pagespeed-02',
+    externalTaskListId: 'list-prorido',
+    googleEtag: '"etag-gtask-02"',
+    syncStatus: 'SYNCED',
+    lastSyncedAt: '2026-09-07T08:00:00Z',
+    createdAt: '2026-09-07T07:45:00Z',
+  },
+  {
+    id: 'task-gt-supplier-call',
+    code: 'T-GT-02',
+    title: 'Call supplier about packaging',
+    businessCode: 'CLIKIXPRESS',
+    projectId: 'proj-clk-mvp',
+    status: 'INBOX',
+    priority: 'P2',
+    estimatedMinutes: 15,
+    notes: 'Captured via Google Assistant on mobile.',
+    source: 'GOOGLE_TASKS',
+    externalTaskId: 'gtask-supplier-03',
+    externalTaskListId: 'list-clikixpress',
+    googleEtag: '"etag-gtask-03"',
+    syncStatus: 'SYNCED',
+    lastSyncedAt: '2026-09-07T08:00:00Z',
+    createdAt: '2026-09-07T08:15:00Z',
+  },
+
+  // 3. OPTIONAL TASKS TODAY
   {
     id: 'task-col-pinterest',
     code: 'T-002',
@@ -567,9 +629,14 @@ export const INITIAL_TASKS: Task[] = [
     priority: 'P2',
     isMustWin: false,
     estimatedMinutes: 20,
-    scheduledDate: '2026-09-06',
+    scheduledDate: '2026-09-07',
     notes: 'Configure Pinterest board token and automated pin creation node.',
     rescueAction: 'Log into Pinterest business account and copy board ID.',
+    source: 'CEO_OS',
+    externalTaskId: 'gtask-col-pinterest-04',
+    externalTaskListId: 'list-col',
+    syncStatus: 'SYNCED',
+    lastSyncedAt: '2026-09-07T08:00:00Z',
     createdAt: '2026-09-05T10:25:00Z',
   },
   {
@@ -582,13 +649,18 @@ export const INITIAL_TASKS: Task[] = [
     priority: 'P2',
     isMustWin: false,
     estimatedMinutes: 30,
-    scheduledDate: '2026-09-06',
+    scheduledDate: '2026-09-07',
     notes: 'Compile Science & Math chapters 1-4 summaries.',
     rescueAction: 'Review Chapter 1 summary bullet points.',
+    source: 'CEO_OS',
+    externalTaskId: 'gtask-col-9th-05',
+    externalTaskListId: 'list-col',
+    syncStatus: 'SYNCED',
+    lastSyncedAt: '2026-09-07T08:00:00Z',
     createdAt: '2026-09-05T10:30:00Z',
   },
 
-  // 3. OVERDUE TASKS (DEMO / INITIAL)
+  // 4. OVERDUE TASKS (DEMO / INITIAL)
   {
     id: 'task-col-fb',
     code: 'T-004',
@@ -603,6 +675,8 @@ export const INITIAL_TASKS: Task[] = [
     notes: 'Verify OAuth permissions in Meta developer console.',
     rescueAction: 'Check FB developer token validity.',
     overdueAt: '2026-09-06T00:00:00Z',
+    source: 'CEO_OS',
+    syncStatus: 'SYNCED',
     createdAt: '2026-09-04T10:00:00Z',
   },
   {
@@ -619,10 +693,12 @@ export const INITIAL_TASKS: Task[] = [
     notes: 'Submit certificate copy for portal verification.',
     rescueAction: 'Check Udyam registration PDF download.',
     overdueAt: '2026-09-05T00:00:00Z',
+    source: 'CEO_OS',
+    syncStatus: 'SYNCED',
     createdAt: '2026-09-03T10:00:00Z',
   },
 
-  // 4. THIS WEEK
+  // 5. THIS WEEK
   {
     id: 'task-col-10th',
     code: 'T-006',
@@ -634,6 +710,8 @@ export const INITIAL_TASKS: Task[] = [
     estimatedMinutes: 45,
     notes: 'Export PDF, verify formula formatting in Physics & Chemistry chapters.',
     rescueAction: 'Check formatting on first 5 pages.',
+    source: 'CEO_OS',
+    syncStatus: 'SYNCED',
     createdAt: '2026-09-01T10:00:00Z',
   },
   {
@@ -647,10 +725,12 @@ export const INITIAL_TASKS: Task[] = [
     estimatedMinutes: 45,
     notes: 'Format screenshots and write conversion metrics summaries.',
     rescueAction: 'Export 4 mockup images.',
+    source: 'CEO_OS',
+    syncStatus: 'SYNCED',
     createdAt: '2026-09-02T10:00:00Z',
   },
 
-  // 5. NEXT / BACKLOG
+  // 6. NEXT / BACKLOG
   {
     id: 'task-clk-supplier',
     code: 'T-008',
@@ -662,6 +742,8 @@ export const INITIAL_TASKS: Task[] = [
     estimatedMinutes: 60,
     notes: 'Compare wholesale quotation rates and shipping turnaround times.',
     rescueAction: 'Review supplier WhatsApp quotes.',
+    source: 'CEO_OS',
+    syncStatus: 'SYNCED',
     createdAt: '2026-09-01T10:00:00Z',
   },
   {
@@ -675,6 +757,8 @@ export const INITIAL_TASKS: Task[] = [
     estimatedMinutes: 60,
     notes: 'Format 30-question Physics mock test.',
     rescueAction: 'Draft 5 questions.',
+    source: 'CEO_OS',
+    syncStatus: 'SYNCED',
     createdAt: '2026-09-01T10:00:00Z',
   },
 ];
@@ -698,21 +782,21 @@ export const INITIAL_SCHEDULE_BLOCKS: ScheduleBlock[] = [
     category: 'TUITION',
     daysOfWeek: [1, 2, 3, 4, 5, 6],
     isCeoTime: false,
-    description: 'Teaching tuition batches.',
+    description: 'Daily batch teaching: Physics, Math, and Chemistry.',
   },
   {
     id: 'sched-3',
-    name: 'Home Tuition / Evening Classes',
+    name: 'Classes / Commute',
     startTime: '19:00',
     endTime: '22:30',
     category: 'CLASSES',
     daysOfWeek: [1, 2, 3, 4, 5, 6],
     isCeoTime: false,
-    description: 'Evening academic batches and student sessions.',
+    description: 'Advanced batches, student assessments, travel.',
   },
   {
     id: 'sched-4',
-    name: 'Dinner & Decompress',
+    name: 'Dinner & Buffer',
     startTime: '22:30',
     endTime: '23:15',
     category: 'REST',
@@ -744,10 +828,15 @@ export const INITIAL_SETTINGS: UserSettings = {
   rescueModeDuration: 10,
   notificationsEnabled: true,
   audioChimeEnabled: true,
-  lastActiveDate: '2026-09-06',
+  lastActiveDate: '2026-09-07',
   lastMustWinId: 'task-prorido-home',
   yesterdayMustWinCompleted: false,
   onboardingCompleted: true,
+
+  // Google Sync Preferences
+  googleAutoSyncOnOpen: true,
+  googleDeleteMode: 'ASK',
+  conflictResolutionStrategy: 'KEEP_CEO_OS',
 };
 
 export const INITIAL_ACTIVITY_LOGS: ActivityLog[] = [
@@ -821,6 +910,11 @@ export const INITIAL_SCHEDULE_ENTRIES: ScheduleEntry[] = [
     description: 'Review student attendance registers and MIS updates',
     activityType: 'SCHOOL',
     status: 'COMPLETED',
+    sourceType: 'FIXED_COMMITMENT',
+    isExternalCommitment: true,
+    googleCalendarEventId: 'gcal-school-01',
+    googleCalendarId: 'primary',
+    syncStatus: 'SYNCED',
     isMustWin: false,
     remarks: 'Quick MIS check completed',
     createdAt: '2026-09-06T22:00:00Z',
@@ -838,6 +932,11 @@ export const INITIAL_SCHEDULE_ENTRIES: ScheduleEntry[] = [
     description: 'Curriculum alignment and exam schedule discussion',
     activityType: 'MEETING',
     status: 'COMPLETED',
+    sourceType: 'FIXED_COMMITMENT',
+    isExternalCommitment: true,
+    googleCalendarEventId: 'gcal-meeting-02',
+    googleCalendarId: 'primary',
+    syncStatus: 'SYNCED',
     isMustWin: false,
     remarks: 'Meeting extended 10 min for syllabus review',
     createdAt: '2026-09-06T22:00:00Z',
@@ -855,6 +954,11 @@ export const INITIAL_SCHEDULE_ENTRIES: ScheduleEntry[] = [
     description: 'Hand over academic awards to 9th grade students',
     activityType: 'ADMIN',
     status: 'COMPLETED',
+    sourceType: 'FIXED_COMMITMENT',
+    isExternalCommitment: true,
+    googleCalendarEventId: 'gcal-school-03',
+    googleCalendarId: 'primary',
+    syncStatus: 'SYNCED',
     isMustWin: false,
     remarks: 'Started 15 min late due to previous meeting',
     createdAt: '2026-09-06T22:00:00Z',
@@ -869,6 +973,11 @@ export const INITIAL_SCHEDULE_ENTRIES: ScheduleEntry[] = [
     description: 'Discuss lesson plans and weekly deliverables',
     activityType: 'MEETING',
     status: 'PLANNED',
+    sourceType: 'FIXED_COMMITMENT',
+    isExternalCommitment: true,
+    googleCalendarEventId: 'gcal-meeting-04',
+    googleCalendarId: 'primary',
+    syncStatus: 'SYNCED',
     isMustWin: false,
     remarks: 'Pending HOD arrival',
     createdAt: '2026-09-06T22:00:00Z',
@@ -883,6 +992,11 @@ export const INITIAL_SCHEDULE_ENTRIES: ScheduleEntry[] = [
     description: 'Regular coaching batches',
     activityType: 'TUITION',
     status: 'PLANNED',
+    sourceType: 'FIXED_COMMITMENT',
+    isExternalCommitment: true,
+    googleCalendarEventId: 'gcal-tuition-05',
+    googleCalendarId: 'primary',
+    syncStatus: 'SYNCED',
     isMustWin: false,
     createdAt: '2026-09-06T22:00:00Z',
   },
@@ -896,6 +1010,11 @@ export const INITIAL_SCHEDULE_ENTRIES: ScheduleEntry[] = [
     description: 'Senior secondary coaching sessions',
     activityType: 'CLASSES',
     status: 'PLANNED',
+    sourceType: 'FIXED_COMMITMENT',
+    isExternalCommitment: true,
+    googleCalendarEventId: 'gcal-tuition-06',
+    googleCalendarId: 'primary',
+    syncStatus: 'SYNCED',
     isMustWin: false,
     createdAt: '2026-09-06T22:00:00Z',
   },
@@ -909,6 +1028,7 @@ export const INITIAL_SCHEDULE_ENTRIES: ScheduleEntry[] = [
     description: 'Decompress, dinner, prepare for CEO Work Block',
     activityType: 'REST',
     status: 'PLANNED',
+    sourceType: 'BUFFER',
     isMustWin: false,
     createdAt: '2026-09-06T22:00:00Z',
   },
@@ -925,6 +1045,10 @@ export const INITIAL_SCHEDULE_ENTRIES: ScheduleEntry[] = [
     projectId: 'proj-des-prorido',
     taskId: 'task-prorido-home',
     status: 'PLANNED',
+    sourceType: 'CEO_OS_TASK',
+    googleCalendarEventId: 'gcal-prorido-home-01',
+    googleCalendarId: 'primary',
+    syncStatus: 'SYNCED',
     isMustWin: true,
     remarks: 'Today\'s Primary Must-Win execution window',
     createdAt: '2026-09-06T22:00:00Z',
@@ -942,6 +1066,7 @@ export const INITIAL_SCHEDULE_ENTRIES: ScheduleEntry[] = [
     projectId: 'proj-col-notes',
     taskId: 'task-col-10th',
     status: 'PLANNED',
+    sourceType: 'CEO_OS_TASK',
     isMustWin: false,
     createdAt: '2026-09-06T22:00:00Z',
   },
@@ -1015,5 +1140,114 @@ export const INITIAL_SCHEDULE_DAY_REVIEWS: ScheduleDayReview[] = [
     remarks: 'Great Sunday execution. Stayed disciplined on Sunday CEO block.',
     createdAt: '2026-09-06T23:59:00Z',
   }
+];
+
+// Initial Google Integration Constants
+export const INITIAL_GOOGLE_CONNECTION: GoogleConnection = {
+  id: 'conn-demo-01',
+  userId: 'user-founder-01',
+  googleAccountEmail: 'founder.ceo@gmail.com',
+  googleUserId: '109283746501928374',
+  scopes: [
+    'https://www.googleapis.com/auth/tasks',
+    'https://www.googleapis.com/auth/calendar.events',
+    'https://www.googleapis.com/auth/userinfo.email',
+  ],
+  status: 'CONNECTED',
+  isTasksEnabled: true,
+  isCalendarEnabled: true,
+  primaryCalendarId: 'primary',
+  selectedCalendarIds: ['primary'],
+  defaultTaskListId: 'list-inbox',
+  syncIntervalMinutes: 5,
+  lastSyncAt: '2026-09-07T08:00:00Z',
+  createdAt: '2026-09-01T00:00:00Z',
+  updatedAt: '2026-09-07T08:00:00Z',
+};
+
+export const INITIAL_TASK_LIST_MAPPINGS: GoogleTaskListMapping[] = [
+  { taskListId: 'list-inbox', taskListTitle: 'My Tasks', isInboxDefault: true },
+  { taskListId: 'list-col', taskListTitle: 'COL', businessCode: 'COL' },
+  { taskListId: 'list-designoia', taskListTitle: 'Designoia', businessCode: 'DESIGNOIA' },
+  { taskListId: 'list-prorido', taskListTitle: 'Prorido', businessCode: 'DESIGNOIA', projectId: 'proj-prorido-web' },
+  { taskListId: 'list-clikixpress', taskListTitle: 'Clikixpress', businessCode: 'CLIKIXPRESS' },
+  { taskListId: 'list-personal', taskListTitle: 'Personal', businessCode: 'PERSONAL' },
+  { taskListId: 'list-school', taskListTitle: 'School', businessCode: 'PERSONAL' },
+];
+
+export const INITIAL_GOOGLE_TASK_MAPPINGS: GoogleTaskMapping[] = [
+  {
+    id: 'gtmap-01',
+    userId: 'user-founder-01',
+    ceoTaskId: 'task-prorido-home',
+    googleTaskId: 'gtask-prorido-home-01',
+    googleTaskListId: 'list-prorido',
+    googleEtag: '"etag-gtask-01"',
+    lastGoogleUpdatedAt: '2026-09-07T08:00:00Z',
+    lastCeoUpdatedAt: '2026-09-07T08:00:00Z',
+    syncStatus: 'SYNCED',
+  },
+  {
+    id: 'gtmap-02',
+    userId: 'user-founder-01',
+    ceoTaskId: 'task-gt-pagespeed',
+    googleTaskId: 'gtask-pagespeed-02',
+    googleTaskListId: 'list-prorido',
+    googleEtag: '"etag-gtask-02"',
+    lastGoogleUpdatedAt: '2026-09-07T08:00:00Z',
+    lastCeoUpdatedAt: '2026-09-07T08:00:00Z',
+    syncStatus: 'SYNCED',
+  },
+  {
+    id: 'gtmap-03',
+    userId: 'user-founder-01',
+    ceoTaskId: 'task-gt-supplier-call',
+    googleTaskId: 'gtask-supplier-03',
+    googleTaskListId: 'list-clikixpress',
+    googleEtag: '"etag-gtask-03"',
+    lastGoogleUpdatedAt: '2026-09-07T08:00:00Z',
+    lastCeoUpdatedAt: '2026-09-07T08:00:00Z',
+    syncStatus: 'SYNCED',
+  },
+];
+
+export const INITIAL_GOOGLE_CALENDAR_MAPPINGS: GoogleCalendarMapping[] = [
+  {
+    id: 'gcmap-01',
+    userId: 'user-founder-01',
+    ceoTaskId: 'task-prorido-home',
+    scheduleEntryId: 'entry-today-9',
+    calendarId: 'primary',
+    googleEventId: 'gcal-prorido-home-01',
+    googleEventEtag: '"etag-gcal-01"',
+    lastGoogleUpdatedAt: '2026-09-07T08:00:00Z',
+    lastCeoUpdatedAt: '2026-09-07T08:00:00Z',
+    syncStatus: 'SYNCED',
+  },
+];
+
+export const INITIAL_GOOGLE_SYNC_LOGS: GoogleSyncLog[] = [
+  {
+    id: 'log-seed-01',
+    eventType: 'SYNC_COMPLETED',
+    details: 'Initial synchronization completed. 3 Google Tasks linked, 5 Google Calendar commitments imported.',
+    createdAt: '2026-09-07T08:00:00Z',
+  },
+  {
+    id: 'log-seed-02',
+    eventType: 'GOOGLE_TASK_IMPORTED',
+    details: 'Imported from Google Tasks: "Check Prorido PageSpeed"',
+    entityId: 'task-gt-pagespeed',
+    entityTitle: 'Check Prorido PageSpeed',
+    createdAt: '2026-09-07T07:45:00Z',
+  },
+  {
+    id: 'log-seed-03',
+    eventType: 'GOOGLE_EVENT_CREATED',
+    details: 'Scheduled CEO OS task in Google Calendar: "Finish Prorido Homepage" (23:15–00:00)',
+    entityId: 'entry-today-9',
+    entityTitle: 'Finish Prorido Homepage',
+    createdAt: '2026-09-06T22:00:00Z',
+  },
 ];
 

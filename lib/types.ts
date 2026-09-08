@@ -102,7 +102,36 @@ export interface Task {
   isDeleted?: boolean; // Soft delete protection
   deletedAt?: string;
   updatedAt?: string;
+
+  // Google Integration Fields
+  source?: TaskSource;
+  externalTaskId?: string;
+  externalTaskListId?: string;
+  googleEtag?: string;
+  googleCalendarEventId?: string;
+  googleCalendarId?: string;
+  syncStatus?: SyncStatus;
+  syncError?: string;
+  lastSyncedAt?: string;
 }
+
+export type TaskSource = 'CEO_OS' | 'GOOGLE_TASKS';
+
+export type SyncStatus = 
+  | 'SYNCED' 
+  | 'SYNCING' 
+  | 'PENDING_SYNC' 
+  | 'CONFLICT' 
+  | 'DISCONNECTED' 
+  | 'ERROR';
+
+export type ScheduleSourceType = 
+  | 'CEO_OS_TASK' 
+  | 'GOOGLE_CALENDAR_EVENT' 
+  | 'FIXED_COMMITMENT' 
+  | 'BUFFER' 
+  | 'PERSONAL' 
+  | 'MEETING';
 
 export interface MomentumStats {
   currentStreak: number;
@@ -130,7 +159,7 @@ export interface TaskLog {
 
 export interface ActivityLog {
   id: string;
-  entityType: 'TASK' | 'PROJECT' | 'SYSTEM' | 'CAPACITY' | 'SCHEDULE' | 'MOMENTUM';
+  entityType: 'TASK' | 'PROJECT' | 'SYSTEM' | 'CAPACITY' | 'SCHEDULE' | 'MOMENTUM' | 'INTEGRATION';
   entityId: string;
   title: string;
   action: 
@@ -157,7 +186,10 @@ export interface ActivityLog {
     | 'SCHEDULE_BLOCK_RESCHEDULED'
     | 'SCHEDULE_BLOCK_CANCELLED'
     | 'NIGHT_PLAN_CREATED'
-    | 'NIGHT_REVIEW_COMPLETED';
+    | 'NIGHT_REVIEW_COMPLETED'
+    | 'GOOGLE_SYNC_COMPLETED'
+    | 'GOOGLE_CONNECTED'
+    | 'GOOGLE_DISCONNECTED';
   details?: string;
   createdAt: string;
 }
@@ -232,6 +264,15 @@ export interface ScheduleEntry {
   // Context & Remarks
   remarks?: string;
   reminderMinutesBefore?: number;
+
+  // Google Integration Fields
+  sourceType?: ScheduleSourceType;
+  googleCalendarEventId?: string;
+  googleCalendarId?: string;
+  googleEtag?: string;
+  externalCalendarName?: string;
+  isExternalCommitment?: boolean;
+  syncStatus?: SyncStatus;
   
   createdAt: string;
   updatedAt?: string;
@@ -368,6 +409,118 @@ export interface MonthlyReview {
   createdAt: string;
 }
 
+// Google Integration Specific Types
+export interface GoogleConnection {
+  id: string;
+  userId: string;
+  googleAccountEmail: string;
+  googleUserId?: string;
+  scopes: string[];
+  status: 'CONNECTED' | 'DISCONNECTED' | 'REAUTH_REQUIRED' | 'ERROR';
+  lastSyncAt?: string;
+  isTasksEnabled: boolean;
+  isCalendarEnabled: boolean;
+  primaryCalendarId: string;
+  selectedCalendarIds: string[];
+  defaultTaskListId?: string;
+  syncIntervalMinutes?: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface GoogleTaskList {
+  id: string;
+  title: string;
+  updated?: string;
+}
+
+export interface GoogleTaskListMapping {
+  taskListId: string;
+  taskListTitle: string;
+  businessCode?: BusinessCode;
+  projectId?: string;
+  isInboxDefault?: boolean;
+}
+
+export interface GoogleTaskMapping {
+  id: string;
+  userId: string;
+  ceoTaskId: string;
+  googleTaskId: string;
+  googleTaskListId: string;
+  googleEtag?: string;
+  lastGoogleUpdatedAt?: string;
+  lastCeoUpdatedAt?: string;
+  syncStatus: SyncStatus;
+  syncError?: string;
+}
+
+export interface GoogleCalendarMapping {
+  id: string;
+  userId: string;
+  ceoTaskId?: string;
+  scheduleEntryId?: string;
+  calendarId: string;
+  googleEventId: string;
+  googleEventEtag?: string;
+  lastGoogleUpdatedAt?: string;
+  lastCeoUpdatedAt?: string;
+  syncStatus: SyncStatus;
+}
+
+export type GoogleSyncEventType = 
+  | 'GOOGLE_TASK_IMPORTED'
+  | 'GOOGLE_TASK_UPDATED'
+  | 'GOOGLE_TASK_COMPLETED'
+  | 'GOOGLE_TASK_REOPENED'
+  | 'GOOGLE_TASK_DELETED'
+  | 'GOOGLE_EVENT_CREATED'
+  | 'GOOGLE_EVENT_UPDATED'
+  | 'GOOGLE_EVENT_DELETED'
+  | 'SYNC_STARTED'
+  | 'SYNC_COMPLETED'
+  | 'SYNC_FAILED'
+  | 'SYNC_CONFLICT';
+
+export interface GoogleSyncLog {
+  id: string;
+  eventType: GoogleSyncEventType;
+  details: string;
+  entityId?: string;
+  entityTitle?: string;
+  isError?: boolean;
+  createdAt: string;
+}
+
+export interface SyncConflict {
+  id: string;
+  ceoTaskId: string;
+  googleTaskId: string;
+  taskTitle: string;
+  ceoTitle: string;
+  googleTitle: string;
+  ceoDueDate?: string;
+  googleDueDate?: string;
+  ceoCompleted: boolean;
+  googleCompleted: boolean;
+  ceoUpdatedAt: string;
+  googleUpdatedAt: string;
+  detectedAt: string;
+}
+
+export type ConflictResolutionStrategy = 'KEEP_CEO_OS' | 'KEEP_GOOGLE' | 'RESOLVE_MANUALLY';
+
+export interface SmartTimeSlot {
+  id: string;
+  date: string; // 'YYYY-MM-DD'
+  startTime: string; // '11:15'
+  endTime: string;   // '12:00'
+  durationMinutes: number;
+  label: string; // 'Recommended', 'Evening Free Block', etc.
+  isRecommended: boolean;
+  conflictDetails?: string;
+}
+
 export interface UserSettings {
   userName: string;
   theme: 'dark' | 'light' | 'system';
@@ -384,5 +537,10 @@ export interface UserSettings {
   lastMustWinId?: string;
   yesterdayMustWinCompleted?: boolean;
   onboardingCompleted: boolean;
+
+  // Google Sync Preferences
+  googleAutoSyncOnOpen: boolean;
+  googleDeleteMode: 'ASK' | 'DELETE_EVERYWHERE' | 'DELETE_CEO_ONLY';
+  conflictResolutionStrategy: ConflictResolutionStrategy;
 }
 
