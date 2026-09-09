@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
     });
 
     response.cookies.delete('ceo_google_access_token');
+    response.cookies.delete('ceo_google_refresh_token');
     return response;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

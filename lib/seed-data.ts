@@ -1169,7 +1169,7 @@ export const INITIAL_TASK_LIST_MAPPINGS: GoogleTaskListMapping[] = [
   { taskListId: 'list-inbox', taskListTitle: 'My Tasks', isInboxDefault: true },
   { taskListId: 'list-col', taskListTitle: 'COL', businessCode: 'COL' },
   { taskListId: 'list-designoia', taskListTitle: 'Designoia', businessCode: 'DESIGNOIA' },
-  { taskListId: 'list-prorido', taskListTitle: 'Prorido', businessCode: 'DESIGNOIA', projectId: 'proj-prorido-web' },
+  { taskListId: 'list-prorido', taskListTitle: 'Prorido', businessCode: 'DESIGNOIA', projectId: 'proj-prorido' },
   { taskListId: 'list-clikixpress', taskListTitle: 'Clikixpress', businessCode: 'CLIKIXPRESS' },
   { taskListId: 'list-personal', taskListTitle: 'Personal', businessCode: 'PERSONAL' },
   { taskListId: 'list-school', taskListTitle: 'School', businessCode: 'PERSONAL' },

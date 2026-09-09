@@ -31,13 +31,22 @@ export async function GET(request: NextRequest) {
     }
 
     const response = NextResponse.redirect(redirectUrl);
-    // Set secure HTTP-only cookies if needed for session
+    // Set secure HTTP-only cookies for session
     if (tokens.access_token) {
       response.cookies.set('ceo_google_access_token', tokens.access_token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         maxAge: tokens.expires_in || 3600,
+      });
+    }
+    if (tokens.refresh_token) {
+      // Refresh tokens don't expire on a fixed schedule; keep for a long time (~180 days)
+      response.cookies.set('ceo_google_refresh_token', tokens.refresh_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 180,
       });
     }
 

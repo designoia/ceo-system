@@ -63,7 +63,6 @@ import {
 } from './utils';
 import { generateDailyRecommendation } from './recommendation-engine';
 import { calculateMomentum } from './momentum-engine';
-import { GoogleBidirectionalSyncEngine } from './integrations/google/sync';
 import { buildCalendarEventDescription, resolveBusinessAndProjectFromList } from './integrations/google/mappings';
 
 const STORAGE_KEYS = {
@@ -1556,7 +1555,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       isCalendarEnabled: true,
       primaryCalendarId: 'primary',
       selectedCalendarIds: ['primary'],
-      defaultTaskListId: 'list-inbox',
+      defaultTaskListId: '@default',
       lastSyncAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     };
@@ -1793,17 +1792,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     setIsSyncingGoogle(true);
     try {
-      const output = await GoogleBidirectionalSyncEngine.runSync(
-        {
+      const response = await fetch('/api/integrations/google/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          origin,
           tasks,
           scheduleEntries,
           connection: googleConnection,
           taskListMappings,
           taskMappings: googleTaskMappings,
           calendarMappings: googleCalendarMappings,
-        },
-        origin
-      );
+        }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({ error: `Sync request failed (${response.status})` }));
+        if (response.status === 401) {
+          setGoogleConnection(prev => prev ? { ...prev, status: 'DISCONNECTED' } : null);
+        }
+        throw new Error(errorBody.error || `Sync request failed (${response.status})`);
+      }
+
+      const output = await response.json();
 
       setTasks(output.updatedTasks);
       setScheduleEntries(output.updatedScheduleEntries);
