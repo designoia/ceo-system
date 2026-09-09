@@ -19,6 +19,7 @@ import { NotificationService } from '@/lib/notification-service';
 import { PageTransition } from '@/components/motion/PageTransition';
 import { TrashModal } from '@/components/tasks/TrashModal';
 import { GoogleConnectionCard } from '@/components/integrations/GoogleConnectionCard';
+import { MobileSettingsList } from '@/components/settings/MobileSettingsList';
 
 const TIMEZONES = [
   { value: 'Asia/Kolkata', label: 'India (IST - Asia/Kolkata)' },
@@ -171,6 +172,13 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Mobile: native list-style settings */}
+      <div className="md:hidden -mx-4 sm:-mx-6">
+        <MobileSettingsList />
+      </div>
+
+      {/* Desktop: tabbed settings (unchanged) */}
+      <div className="hidden md:block space-y-6">
       {/* Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-border/80 pb-3">
         <button
@@ -487,6 +495,7 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+      </div>
 
       <TrashModal
         isOpen={isTrashOpen}
