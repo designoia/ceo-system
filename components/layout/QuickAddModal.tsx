@@ -4,11 +4,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, ArrowRight, Zap, Target } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { BusinessCode, TaskPriority, TaskStatus } from '@/lib/types';
+import { classifyTask } from '@/lib/ai-heuristics';
 
 export function QuickAddModal() {
   const { isQuickAddOpen, setQuickAddOpen, addTask, businesses, projects } = useStore();
   const [title, setTitle] = useState('');
   const [businessCode, setBusinessCode] = useState<BusinessCode>('COL');
+  const [businessTouched, setBusinessTouched] = useState(false);
   const [projectId, setProjectId] = useState<string>('');
   const [priority, setPriority] = useState<TaskPriority>('P1');
   const [status, setStatus] = useState<TaskStatus>('INBOX');
@@ -35,8 +37,17 @@ export function QuickAddModal() {
     } else {
       setTitle('');
       setShowAdvanced(false);
+      setBusinessTouched(false);
     }
   }, [isQuickAddOpen]);
+
+  // Quiet background classification — suggests a business from the title
+  // until the user picks one manually themselves.
+  useEffect(() => {
+    if (businessTouched) return;
+    const suggestion = classifyTask(title);
+    if (suggestion) setBusinessCode(suggestion);
+  }, [title, businessTouched]);
 
   if (!isQuickAddOpen) return null;
 
@@ -119,6 +130,7 @@ export function QuickAddModal() {
                   value={businessCode}
                   onChange={(e) => {
                     setBusinessCode(e.target.value as BusinessCode);
+                    setBusinessTouched(true);
                     setProjectId('');
                   }}
                   className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-foreground focus:outline-none"

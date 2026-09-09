@@ -17,6 +17,7 @@ import { useStore } from '@/lib/store';
 import { formatMinutes } from '@/lib/utils';
 import { SyncStatusIndicator } from '@/components/integrations/SyncStatusIndicator';
 import { Task } from '@/lib/types';
+import { detectOverload, detectStalledProjects } from '@/lib/ai-heuristics';
 
 function Section({
   icon: Icon,
@@ -63,11 +64,13 @@ export function MobileCeoHome({ onOpenTask }: { onOpenTask: (t: Task) => void })
     .slice(0, 3);
 
   const currentTask = top3[0];
-  const workloadMinutes = todayTasks.reduce((sum, t) => sum + (t.estimatedMinutes || 45), 0);
-  const overCapacity = workloadMinutes > todayCapacityMinutes;
+  const overload = detectOverload(todayTasks, todayCapacityMinutes);
+  const workloadMinutes = overload.workloadMinutes;
+  const overCapacity = overload.isOverloaded;
 
   const activeProjects = projects.filter((p) => p.status === 'ACTIVE' && !p.parentProjectId);
-  const stalledProjects = activeProjects.filter((p) => getProjectProgress(p.id) === 0);
+  const stalled = detectStalledProjects(activeProjects, tasks, getProjectProgress);
+  const stalledProjects = stalled.map((s) => s.project);
 
   // CEO Brief — templated one-liner, not a fake AI call
   const briefParts: string[] = [];
