@@ -16,6 +16,7 @@ import { getTodayDateString } from '@/lib/utils';
 import { WeeklyReview, MonthlyReview } from '@/lib/types';
 import { PageTransition } from '@/components/motion/PageTransition';
 import { ScheduleAnalyticsCard } from '@/components/schedule/ScheduleAnalyticsCard';
+import { summarizeWeek } from '@/lib/ai-heuristics';
 
 export default function ReviewsPage() {
   const { 
@@ -48,6 +49,19 @@ export default function ReviewsPage() {
   const thisWeekTasks = tasks.filter(
     (t) => t.status === 'THIS_WEEK' || t.status === 'TODAY' || (t.status === 'DONE' && t.completedAt)
   );
+  const mustWinsCompletedCount = tasks.filter((t) => t.isMustWin && t.status === 'DONE').length;
+  const overdueCount = tasks.filter((t) => t.status === 'OVERDUE').length;
+
+  const handleSuggestSummary = () => {
+    setWeeklyKeyLearning(
+      summarizeWeek({
+        tasksPlanned: thisWeekTasks.length,
+        tasksCompleted: completedTasks.length,
+        mustWinsCompleted: mustWinsCompletedCount,
+        overdueCount,
+      })
+    );
+  };
 
   const handleSaveWeekly = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +71,7 @@ export default function ReviewsPage() {
       weekStart: getTodayDateString(),
       tasksPlanned: thisWeekTasks.length,
       tasksCompleted: completedTasks.length,
-      mustWinsCompleted: 5,
+      mustWinsCompleted: mustWinsCompletedCount,
       keyLearning: weeklyKeyLearning.trim() || undefined,
       nextWeekOneOutcome: nextWeekOutcome.trim(),
     });
@@ -200,9 +214,19 @@ export default function ReviewsPage() {
               </div>
 
               <div>
-                <label className="mb-1 block font-semibold text-foreground">
-                  Key execution learning / adjustment:
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold text-foreground">
+                    Key execution learning / adjustment:
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleSuggestSummary}
+                    className="flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    <span>Suggest summary</span>
+                  </button>
+                </div>
                 <textarea
                   rows={2}
                   value={weeklyKeyLearning}
