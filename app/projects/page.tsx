@@ -17,6 +17,7 @@ import {
 import { useStore } from '@/lib/store';
 import { BusinessCode, Project, ProjectStatus, TaskPriority } from '@/lib/types';
 import { PageTransition } from '@/components/motion/PageTransition';
+import { MobileProjectCard } from '@/components/projects/MobileProjectCard';
 
 const STATUS_DOT: Record<ProjectStatus, string> = {
   ACTIVE: 'bg-emerald-500',
@@ -199,8 +200,41 @@ export default function ProjectsPage() {
         </select>
       </div>
 
-      {/* Compact grouped list */}
-      <div className="space-y-6">
+      {/* Mobile: compact project cards (distinct layout, not shrunk desktop rows) */}
+      <div className="md:hidden space-y-6">
+        {businessesWithProjects.map((biz) => {
+          const bizProjects = topLevelProjects.filter((p) => p.businessCode === biz.code);
+          if (bizProjects.length === 0) return null;
+
+          return (
+            <div key={biz.code} className="space-y-2">
+              <div className="flex items-center gap-2 px-1">
+                <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: biz.color }} />
+                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {biz.name}
+                </h3>
+                <span className="text-[11px] text-muted-foreground/60 font-mono">{bizProjects.length}</span>
+              </div>
+
+              <div className="space-y-2">
+                {bizProjects.map((p) => (
+                  <MobileProjectCard
+                    key={p.id}
+                    project={p}
+                    progress={getProjectProgress(p.id)}
+                    activeTaskCount={tasks.filter((t) => t.projectId === p.id && !t.parentTaskId && !t.isDeleted && t.status !== 'DONE').length}
+                    nextAction={nextActionFor(p.id)}
+                    onOpen={(proj) => setSelectedProject(proj)}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop: compact grouped list */}
+      <div className="hidden md:block space-y-6">
         {businessesWithProjects.map((biz) => {
           const bizProjects = topLevelProjects.filter((p) => p.businessCode === biz.code);
           if (bizProjects.length === 0) return null;
