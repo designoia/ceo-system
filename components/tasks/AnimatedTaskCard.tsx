@@ -41,7 +41,7 @@ interface AnimatedTaskCardProps {
   onAddSubtask: (parentTaskId: string, title: string) => void;
 }
 
-export function AnimatedTaskCard({
+export const AnimatedTaskCard = React.forwardRef<HTMLDivElement, AnimatedTaskCardProps>(function AnimatedTaskCard({
   task,
   project,
   business,
@@ -58,7 +58,7 @@ export function AnimatedTaskCard({
   onSetMustWin,
   onUpdateStatus,
   onAddSubtask,
-}: AnimatedTaskCardProps) {
+}: AnimatedTaskCardProps, ref) {
   const [newSubtaskText, setNewSubtaskText] = useState('');
   const [isCompletingLocal, setIsCompletingLocal] = useState(false);
   const isDone = task.status === 'DONE' || isCompletingLocal;
@@ -85,6 +85,7 @@ export function AnimatedTaskCard({
 
   return (
     <motion.div
+      ref={ref}
       layout
       variants={VARIANTS.taskCardEntrance}
       initial="initial"
@@ -393,4 +394,6 @@ export function AnimatedTaskCard({
       </AnimatePresence>
     </motion.div>
   );
-}
+});
+
+AnimatedTaskCard.displayName = 'AnimatedTaskCard';
