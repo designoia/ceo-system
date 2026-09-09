@@ -67,6 +67,31 @@ export function ExecutiveTimeline({
   }
   if (cursor < END_HOUR * 60) gaps.push({ start: cursor, end: END_HOUR * 60 });
 
+  // Overloaded periods: continuous back-to-back blocks (gap < 10min between
+  // them) totalling more than 3 hours with no break — a realistic burnout risk.
+  const OVERLOAD_THRESHOLD_MIN = 180;
+  const overloadStretches: { start: number; end: number }[] = [];
+  {
+    let stretchStart: number | null = null;
+    let prevEnd: number | null = null;
+    for (const e of sorted) {
+      const s = timeToMinutes(e.plannedStartTime);
+      const en = timeToMinutes(e.plannedEndTime);
+      if (prevEnd !== null && s - prevEnd <= 10) {
+        // continues the current stretch
+      } else {
+        if (stretchStart !== null && prevEnd !== null && prevEnd - stretchStart >= OVERLOAD_THRESHOLD_MIN) {
+          overloadStretches.push({ start: stretchStart, end: prevEnd });
+        }
+        stretchStart = s;
+      }
+      prevEnd = en;
+    }
+    if (stretchStart !== null && prevEnd !== null && prevEnd - stretchStart >= OVERLOAD_THRESHOLD_MIN) {
+      overloadStretches.push({ start: stretchStart, end: prevEnd });
+    }
+  }
+
   const yFor = (mins: number) => ((mins - START_HOUR * 60) / TOTAL_MINUTES) * (TOTAL_MINUTES / 60) * HOUR_HEIGHT;
   const heightFor = (durationMins: number) => (durationMins / 60) * HOUR_HEIGHT;
 
@@ -100,6 +125,16 @@ export function ExecutiveTimeline({
               {h % 12 === 0 ? 12 : h % 12}{h < 12 || h === 24 ? 'am' : 'pm'}
             </span>
           </div>
+        ))}
+
+        {/* Overloaded periods — visible edge stripe, no break for 3h+ */}
+        {overloadStretches.map((s, i) => (
+          <div
+            key={`overload-${i}`}
+            className="absolute left-0 w-1 rounded-full bg-red-500/70"
+            style={{ top: yFor(s.start), height: heightFor(s.end - s.start) }}
+            title={`Overloaded: ${Math.round((s.end - s.start) / 60)}h straight with no break`}
+          />
         ))}
 
         {/* Available time (visually obvious empty gaps) */}
