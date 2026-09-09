@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   Business,
   Goal,
@@ -212,6 +212,7 @@ interface StoreContextType {
   dismissWelcomeBack: () => void;
   logActivity: (entityType: 'TASK' | 'PROJECT' | 'SYSTEM' | 'CAPACITY' | 'SCHEDULE' | 'MOMENTUM' | 'INTEGRATION', entityId: string, title: string, action: ActivityLog['action'], details?: string) => void;
   resetToDemoData: () => void;
+  resetToCleanStart: () => void;
   exportDataJSON: () => string;
   exportTasksCSV: () => string;
   importDataJSON: (jsonString: string) => boolean;
@@ -1848,6 +1849,37 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, [googleConnection, tasks, scheduleEntries, taskListMappings, googleTaskMappings, googleCalendarMappings, logActivity]);
 
+  // Keep a stable ref to the latest syncGoogleNow so the auto-sync interval
+  // below doesn't need to reset every time tasks/schedule change.
+  const syncGoogleNowRef = useRef(syncGoogleNow);
+  useEffect(() => {
+    syncGoogleNowRef.current = syncGoogleNow;
+  }, [syncGoogleNow]);
+
+  // Background auto-sync: periodically pull/push Google Tasks & Calendar
+  // while connected and the app is open, so no manual "Sync Now" click is needed.
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (!googleConnection || googleConnection.status !== 'CONNECTED') return;
+
+    const intervalMinutes = Math.max(1, googleConnection.syncIntervalMinutes || 5);
+    const intervalMs = intervalMinutes * 60 * 1000;
+
+    // Sync once shortly after connecting/loading, then on the recurring interval.
+    const kickoff = setTimeout(() => {
+      syncGoogleNowRef.current('CEO_OS').catch(() => {});
+    }, 3000);
+
+    const id = setInterval(() => {
+      syncGoogleNowRef.current('CEO_OS').catch(() => {});
+    }, intervalMs);
+
+    return () => {
+      clearTimeout(kickoff);
+      clearInterval(id);
+    };
+  }, [isLoaded, googleConnection?.status, googleConnection?.syncIntervalMinutes]);
+
   const simulateExternalGoogleTask = useCallback((title: string, listTitle = 'My Tasks') => {
     const { businessCode, projectId } = resolveBusinessAndProjectFromList(
       'sim-list',
@@ -2040,6 +2072,61 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setWeeklyReviews([]);
     setMonthlyReviews([]);
     setSettings(INITIAL_SETTINGS);
+  }, []);
+
+  // Clears all demo/seed projects, tasks, and schedule data down to a
+  // minimal 3-project structure (School / COL / Prorido). Goals and the
+  // 5-year strategic plan are left untouched.
+  const resetToCleanStart = useCallback(() => {
+    const now = new Date().toISOString();
+    const cleanProjects: Project[] = [
+      {
+        id: 'proj-school',
+        name: 'School',
+        businessCode: 'PERSONAL',
+        description: 'Personal schooling — notes, tests, printouts, admin.',
+        successDefinition: 'All school tasks tracked and completed on time.',
+        status: 'ACTIVE',
+        priority: 'P2',
+        createdAt: now,
+      },
+      {
+        id: 'proj-col',
+        name: 'COL',
+        businessCode: 'COL',
+        description: 'Circle of Learning — institutional business operations.',
+        successDefinition: 'COL business tasks tracked and executed.',
+        status: 'ACTIVE',
+        priority: 'P1',
+        createdAt: now,
+      },
+      {
+        id: 'proj-prorido',
+        name: 'Prorido',
+        businessCode: 'DESIGNOIA',
+        description: 'Prorido — Designoia client project.',
+        successDefinition: 'Prorido deliverables tracked and shipped.',
+        status: 'ACTIVE',
+        priority: 'P1',
+        createdAt: now,
+      },
+    ];
+
+    setProjects(cleanProjects);
+    setTasks([]);
+    setTaskLogs([]);
+    setActivityLogs([]);
+    setScheduleBlocks([]);
+    setScheduleOverrides([]);
+    setDailyPlans([]);
+    setScheduleEntries([]);
+    setScheduleDayReviews([]);
+    setDailyCheckins([]);
+    setWeeklyReviews([]);
+    setMonthlyReviews([]);
+    setGoogleTaskMappings([]);
+    setGoogleCalendarMappings([]);
+    setGoogleSyncLogs([]);
   }, []);
 
   const exportDataJSON = useCallback(() => {
@@ -2237,6 +2324,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     dismissWelcomeBack,
     logActivity,
     resetToDemoData,
+    resetToCleanStart,
     exportDataJSON,
     exportTasksCSV,
     importDataJSON,

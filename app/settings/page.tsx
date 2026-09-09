@@ -63,6 +63,7 @@ export default function SettingsPage() {
     activityLogs,
     deletedTasks,
     resetToDemoData,
+    resetToCleanStart,
     exportDataJSON,
     exportTasksCSV,
     importDataJSON,
@@ -438,6 +439,28 @@ export default function SettingsPage() {
             >
               <RotateCcw className="h-3.5 w-3.5 text-primary" />
               <span>Open Trash ({deletedTasks.length})</span>
+            </button>
+          </div>
+
+          {/* CLEAN START */}
+          <div className="rounded-3xl border border-amber-500/20 bg-amber-500/5 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h4 className="text-sm font-bold text-foreground">Clean Start (School / COL / Prorido)</h4>
+              <p className="text-xs text-muted-foreground">
+                Clears all projects, tasks, and schedule data down to 3 projects: School, COL, Prorido. Goals and the 5-year plan are kept.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                if (confirm('Clear all tasks, projects, and schedule data? This keeps your Goals untouched. This cannot be undone.')) {
+                  resetToCleanStart();
+                }
+              }}
+              className="flex items-center gap-1.5 rounded-xl border border-amber-500/30 px-4 py-2 text-xs font-semibold text-amber-600 hover:bg-amber-500/10 transition-colors self-start sm:self-auto min-h-[44px]"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span>Clean Start</span>
             </button>
           </div>
 
