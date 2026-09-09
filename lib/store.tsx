@@ -64,6 +64,7 @@ import {
 import { generateDailyRecommendation } from './recommendation-engine';
 import { calculateMomentum } from './momentum-engine';
 import { buildCalendarEventDescription, resolveBusinessAndProjectFromList } from './integrations/google/mappings';
+import { markPendingChange, clearPending } from './offline-queue';
 
 const STORAGE_KEYS = {
   BUSINESSES: 'ceo_os_businesses_v2',
@@ -639,13 +640,38 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tasks }),
-      }).catch(() => {
-        // Offline or Supabase not configured — safe to ignore, localStorage still has the data.
-      });
+      })
+        .then((res) => {
+          if (res.ok) clearPending();
+          else markPendingChange();
+        })
+        .catch(() => {
+          // Offline or Supabase not configured — localStorage still has the
+          // data, but the change hasn't reached Supabase yet. Tracked so
+          // OfflineIndicator can show an honest "N changes queued".
+          markPendingChange();
+        });
     }, 2000);
 
     return () => clearTimeout(timeout);
   }, [tasks, isLoaded]);
+
+  // Retry the queued push the moment connectivity returns, instead of
+  // waiting for the next task edit to trigger the debounced effect above.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onOnline = () => {
+      fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tasks }),
+      })
+        .then((res) => { if (res.ok) clearPending(); })
+        .catch(() => {});
+    };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [tasks]);
 
   useEffect(() => {
     if (!isLoaded || typeof window === 'undefined') return;

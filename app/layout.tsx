@@ -18,16 +18,23 @@ import { ConnectionBanner } from '@/components/motion/ConnectionBanner';
 import { ScheduleTaskModal } from '@/components/schedule/ScheduleTaskModal';
 import { ConflictResolutionModal } from '@/components/integrations/ConflictResolutionModal';
 import { SyncLogViewerModal } from '@/components/integrations/SyncLogViewerModal';
+import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistration';
+import { InstallPrompt } from '@/components/pwa/InstallPrompt';
+import { UpdateBanner } from '@/components/pwa/UpdateBanner';
+import { OfflineIndicator } from '@/components/pwa/OfflineIndicator';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'CEO OS — 5-Year Plan → Today\'s Action',
   description: 'Personal 5-year execution operating system. Turn large vision into one clear daily action.',
-  manifest: '/manifest.json',
+  manifest: '/manifest.webmanifest',
   icons: {
-    icon: '/icons/icon.svg',
-    apple: '/icons/icon.svg',
+    icon: [
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: '/icons/apple-touch-icon.png',
   },
 };
 
@@ -47,12 +54,18 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <head>
-        <link rel="manifest" href="/manifest.json" />
+        <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Designoia" />
       </head>
       <body className={`${inter.className} min-h-screen bg-background text-foreground antialiased`}>
         <StoreProvider>
+          <ServiceWorkerRegistration />
+          <UpdateBanner />
+          <OfflineIndicator />
+          <InstallPrompt />
+
           <div className="flex min-h-screen">
             {/* Desktop Navigation Sidebar */}
             <Sidebar />
