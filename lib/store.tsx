@@ -599,6 +599,51 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
   }, [tasks, isLoaded]);
 
+  // Pull tasks from Supabase once on load — picks up anything the
+  // background cron (Vercel Cron) synced from Google while the app was
+  // closed. Merges by id, preferring the Supabase copy when both exist.
+  useEffect(() => {
+    if (!isLoaded || typeof window === 'undefined') return;
+
+    fetch('/api/tasks')
+      .then((r) => r.json())
+      .then((data: { configured: boolean; tasks: Task[] }) => {
+        if (!data.configured || !data.tasks || data.tasks.length === 0) return;
+        setTasks((prev) => {
+          const byId = new Map(prev.map((t) => [t.id, t]));
+          for (const remote of data.tasks) {
+            byId.set(remote.id, remote);
+          }
+          return Array.from(byId.values());
+        });
+      })
+      .catch(() => {
+        // Offline or Supabase not configured — local data remains authoritative.
+      });
+    // Intentionally runs once per load, not on every task change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded]);
+
+  // Push local task changes to Supabase (debounced) so the background cron
+  // has an up-to-date picture to reconcile against, and so tasks survive
+  // across devices/browsers even without Google sync.
+  useEffect(() => {
+    if (!isLoaded || typeof window === 'undefined') return;
+    if (tasks.length === 0) return;
+
+    const timeout = setTimeout(() => {
+      fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tasks }),
+      }).catch(() => {
+        // Offline or Supabase not configured — safe to ignore, localStorage still has the data.
+      });
+    }, 2000);
+
+    return () => clearTimeout(timeout);
+  }, [tasks, isLoaded]);
+
   useEffect(() => {
     if (!isLoaded || typeof window === 'undefined') return;
     localStorage.setItem(STORAGE_KEYS.TASK_LOGS, JSON.stringify(taskLogs));

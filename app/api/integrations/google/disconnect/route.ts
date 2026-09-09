@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revokeGoogleToken } from '@/lib/integrations/google/auth';
+import { getSupabaseAdmin, getAppUserId } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +9,19 @@ export async function POST(request: NextRequest) {
     const accessToken = request.cookies.get('ceo_google_access_token')?.value;
     if (accessToken) {
       await revokeGoogleToken(accessToken);
+    }
+
+    try {
+      const admin = getSupabaseAdmin();
+      const userId = await getAppUserId();
+      if (admin && userId) {
+        await admin
+          .from('google_connections')
+          .update({ status: 'DISCONNECTED', updated_at: new Date().toISOString() })
+          .eq('user_id', userId);
+      }
+    } catch (dbErr) {
+      console.error('Failed to update Supabase connection status:', dbErr);
     }
 
     const response = NextResponse.json({

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { exchangeCodeForTokens, fetchGoogleUserProfile } from '@/lib/integrations/google/auth';
+import { getSupabaseAdmin, getAppUserId } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,8 +22,41 @@ export async function GET(request: NextRequest) {
     const tokens = await exchangeCodeForTokens(code);
     const profile = await fetchGoogleUserProfile(tokens.access_token);
 
-    // In a full multi-tenant DB setup, save tokens to public.google_connections
-    // For seamless client initialization, redirect back with success parameters
+    // Persist tokens server-side so background sync (Vercel Cron) can run
+    // without a browser session. Best-effort: if Supabase isn't configured,
+    // the cookie-based flow below still works for in-app sync.
+    try {
+      const admin = getSupabaseAdmin();
+      const userId = await getAppUserId();
+      if (admin && userId) {
+        const tokenExpiresAt = tokens.expires_in
+          ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
+          : null;
+
+        const upsertData: Record<string, unknown> = {
+          user_id: userId,
+          google_account_email: profile.email,
+          google_user_id: profile.id,
+          access_token_encrypted: tokens.access_token,
+          token_expires_at: tokenExpiresAt,
+          status: 'CONNECTED',
+          updated_at: new Date().toISOString(),
+        };
+        // Google only returns refresh_token on first consent — don't
+        // overwrite a previously stored one with null on reconnect.
+        if (tokens.refresh_token) {
+          upsertData.refresh_token_encrypted = tokens.refresh_token;
+        }
+
+        await admin
+          .from('google_connections')
+          .upsert(upsertData, { onConflict: 'user_id' });
+      }
+    } catch (dbErr) {
+      console.error('Failed to persist Google connection to Supabase:', dbErr);
+    }
+
+    // Redirect back with success parameters for the client-side store
     const redirectUrl = new URL('/settings', request.url);
     redirectUrl.searchParams.set('google_connected', 'true');
     redirectUrl.searchParams.set('google_email', profile.email);
