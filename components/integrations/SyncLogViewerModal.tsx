@@ -3,9 +3,12 @@
 import React from 'react';
 import { X, Activity, CheckCircle2, AlertCircle, Calendar, ArrowDownUp, RefreshCw } from 'lucide-react';
 import { useStore } from '@/lib/store';
+import { useCloseOnRouteChange } from '@/lib/hooks/useCloseOnRouteChange';
 
 export function SyncLogViewerModal() {
   const { isSyncLogViewerOpen, setSyncLogViewerOpen, googleSyncLogs } = useStore();
+
+  useCloseOnRouteChange(isSyncLogViewerOpen, () => setSyncLogViewerOpen(false));
 
   if (!isSyncLogViewerOpen) return null;
 

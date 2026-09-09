@@ -18,18 +18,21 @@ import { useStore } from '@/lib/store';
 import { Task, SmartTimeSlot } from '@/lib/types';
 import { getTodayDateString, formatTime12Hour, calculateMinutesBetween, formatMinutesToTime, parseTimeToMinutes } from '@/lib/utils';
 import { findSmartFreeSlots, checkScheduleConflict } from '@/lib/integrations/google/slots';
+import { useCloseOnRouteChange } from '@/lib/hooks/useCloseOnRouteChange';
 
 export function ScheduleTaskModal() {
-  const { 
-    taskToSchedule, 
-    isScheduleTaskModalOpen, 
-    closeScheduleModal, 
+  const {
+    taskToSchedule,
+    isScheduleTaskModalOpen,
+    closeScheduleModal,
     scheduleTaskOnCalendar,
     scheduleEntries,
     settings,
     googleConnection,
     projects
   } = useStore();
+
+  useCloseOnRouteChange(isScheduleTaskModalOpen, closeScheduleModal);
 
   const todayStr = getTodayDateString(settings.timezone || 'Asia/Kolkata');
   

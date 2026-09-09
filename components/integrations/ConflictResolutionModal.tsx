@@ -4,14 +4,17 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { AlertCircle, X, CheckCircle2, ArrowRight, RefreshCw } from 'lucide-react';
 import { useStore } from '@/lib/store';
+import { useCloseOnRouteChange } from '@/lib/hooks/useCloseOnRouteChange';
 
 export function ConflictResolutionModal() {
-  const { 
-    conflictModalOpen, 
-    setConflictModalOpen, 
-    conflictToResolve, 
-    resolveSyncConflict 
+  const {
+    conflictModalOpen,
+    setConflictModalOpen,
+    conflictToResolve,
+    resolveSyncConflict
   } = useStore();
+
+  useCloseOnRouteChange(conflictModalOpen, () => setConflictModalOpen(false));
 
   if (!conflictModalOpen || !conflictToResolve) return null;
 

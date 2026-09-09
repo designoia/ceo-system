@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useStore } from '@/lib/store';
 import { DESIGNOIA_MOTION } from '@/lib/motion';
 import { MoreSheet } from '@/components/layout/MoreSheet';
+import { useCloseOnRouteChange } from '@/lib/hooks/useCloseOnRouteChange';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Home', icon: Home },
@@ -23,6 +24,7 @@ export function MobileNav() {
   const pathname = usePathname();
   const { setCommandPaletteOpen } = useStore();
   const [moreOpen, setMoreOpen] = useState(false);
+  useCloseOnRouteChange(moreOpen, () => setMoreOpen(false));
 
   const renderLink = (item: (typeof NAV_ITEMS)[number]) => {
     const isActive = pathname === item.href;

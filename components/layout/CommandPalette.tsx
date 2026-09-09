@@ -3,18 +3,13 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, FolderKanban, CheckCircle2, Circle, Calendar, ArrowRight } from 'lucide-react';
+import { Search, Plus, FolderKanban, CheckCircle2, Circle, Calendar, ArrowRight, Lightbulb } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { TaskDrawer } from '@/components/tasks/TaskDrawer';
 import { Task, TaskStatus } from '@/lib/types';
-
-const MOVE_TARGETS: { value: TaskStatus; label: string }[] = [
-  { value: 'TODAY', label: 'Today' },
-  { value: 'NEXT', label: 'Next Up' },
-  { value: 'THIS_WEEK', label: 'This Week' },
-  { value: 'BACKLOG', label: 'Backlog' },
-  { value: 'INBOX', label: 'Inbox' },
-];
+import { useIsMobile } from '@/lib/hooks/useIsMobile';
+import { useCloseOnRouteChange } from '@/lib/hooks/useCloseOnRouteChange';
+import { DESIGNOIA_MOTION } from '@/lib/motion';
 
 type PaletteItem = {
   id: string;
@@ -27,6 +22,7 @@ type PaletteItem = {
 
 export function CommandPalette() {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const {
     isCommandPaletteOpen,
     setCommandPaletteOpen,
@@ -35,7 +31,6 @@ export function CommandPalette() {
     projects,
     completeTask,
     undoTaskCompletion,
-    updateTaskStatus,
     openScheduleModal,
     addTask,
   } = useStore();
@@ -44,6 +39,13 @@ export function CommandPalette() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [drawerTask, setDrawerTask] = useState<Task | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const close = () => setCommandPaletteOpen(false);
+
+  // Globally-mounted overlay — must not survive a route change, or its
+  // backdrop (above the bottom nav's z-index) silently blocks the app.
+  useCloseOnRouteChange(isCommandPaletteOpen, close);
+  useCloseOnRouteChange(Boolean(drawerTask), () => setDrawerTask(null));
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -63,11 +65,9 @@ export function CommandPalette() {
     if (isCommandPaletteOpen) {
       setQuery('');
       setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 30);
+      if (!isMobile) setTimeout(() => inputRef.current?.focus(), 30);
     }
-  }, [isCommandPaletteOpen]);
-
-  const close = () => setCommandPaletteOpen(false);
+  }, [isCommandPaletteOpen, isMobile]);
 
   const items: PaletteItem[] = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -87,7 +87,7 @@ export function CommandPalette() {
     } else {
       result.push({
         id: 'add-task-open',
-        label: 'Add task…',
+        label: 'Add task',
         icon: <Plus className="h-4 w-4" />,
         action: () => {
           close();
@@ -95,8 +95,18 @@ export function CommandPalette() {
         },
       });
       result.push({
+        id: 'capture-idea',
+        label: 'Capture idea',
+        hint: 'Goes to Inbox',
+        icon: <Lightbulb className="h-4 w-4" />,
+        action: () => {
+          close();
+          setQuickAddOpen(true);
+        },
+      });
+      result.push({
         id: 'create-project',
-        label: 'Create project…',
+        label: 'Create project',
         icon: <FolderKanban className="h-4 w-4" />,
         action: () => {
           close();
@@ -174,62 +184,111 @@ export function CommandPalette() {
               onClick={close}
               className="fixed inset-0 z-[60] bg-black/50"
             />
-            <motion.div
-              initial={{ opacity: 0, y: -8, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.98 }}
-              transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-              className="fixed left-1/2 top-[18%] z-[60] w-full max-w-lg -translate-x-1/2 rounded-xl border border-border surface-2 shadow-2xl overflow-hidden"
-            >
-              <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border">
-                <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-                <input
-                  ref={inputRef}
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={handleKeyDownInput}
-                  placeholder="Search tasks, projects, or type a command…"
-                  className="flex-1 bg-transparent text-[14px] text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
-                />
-                <kbd className="text-[10px] text-muted-foreground/60 font-mono border border-border rounded px-1.5 py-0.5">
-                  Esc
-                </kbd>
-              </div>
 
-              <div className="max-h-[360px] overflow-y-auto py-1.5">
-                {items.length === 0 ? (
-                  <div className="px-4 py-6 text-center text-[12px] text-muted-foreground">No matches</div>
-                ) : (
-                  items.map((item, idx) => (
-                    <div
-                      key={item.id}
-                      onMouseEnter={() => setSelectedIndex(idx)}
-                      className={`w-full flex items-center gap-2 px-4 py-2 transition-colors ${
-                        idx === selectedIndex ? 'bg-secondary' : ''
-                      }`}
-                    >
-                      {item.task ? (
-                        <button
-                          onClick={() =>
-                            item.task!.status === 'DONE'
-                              ? undoTaskCompletion(item.task!.id)
-                              : completeTask(item.task!.id, item.task!.estimatedMinutes)
-                          }
-                          title="Complete"
-                          className="text-muted-foreground hover:text-primary transition-colors shrink-0"
-                        >
-                          {item.icon}
-                        </button>
-                      ) : (
+            {isMobile ? (
+              <motion.div
+                drag="y"
+                dragConstraints={{ top: 0, bottom: 0 }}
+                dragElastic={{ top: 0, bottom: 0.4 }}
+                onDragEnd={(_, info) => {
+                  if (info.offset.y > 100 || info.velocity.y > 500) close();
+                }}
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={DESIGNOIA_MOTION.bottomSheet}
+                className="fixed inset-x-0 bottom-0 z-[60] max-h-[80vh] surface-2 border-t border-border shadow-2xl rounded-t-2xl pb-[env(safe-area-inset-bottom,16px)] flex flex-col"
+              >
+                <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+                  <div className="h-1 w-9 rounded-full bg-border" />
+                </div>
+
+                <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-border shrink-0">
+                  <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search or add a task…"
+                    className="flex-1 min-w-0 bg-transparent text-[16px] text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+                  />
+                </div>
+
+                <div className="overflow-y-auto py-1.5">
+                  {items.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-[13px] text-muted-foreground">No matches</div>
+                  ) : (
+                    items.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => item.action()}
+                        className="w-full flex items-center gap-3 px-4 py-3 min-h-[44px] text-left active:bg-secondary/60 transition-colors"
+                      >
                         <span className="text-muted-foreground shrink-0">{item.icon}</span>
-                      )}
-
-                      <button onClick={() => item.action()} className="flex-1 min-w-0 text-left">
-                        <span className="text-[13px] text-foreground truncate block">{item.label}</span>
+                        <span className="text-[14px] text-foreground flex-1 min-w-0 truncate">{item.label}</span>
+                        {item.hint && (
+                          <span className="text-[11px] text-muted-foreground shrink-0">{item.hint}</span>
+                        )}
                       </button>
+                    ))
+                  )}
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                className="fixed left-1/2 top-[18%] z-[60] w-full max-w-lg -translate-x-1/2 rounded-xl border border-border surface-2 shadow-2xl overflow-hidden"
+              >
+                <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border">
+                  <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <input
+                    ref={inputRef}
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={handleKeyDownInput}
+                    placeholder="Search tasks, projects, or type a command…"
+                    className="flex-1 bg-transparent text-[14px] text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+                  />
+                  <kbd className="text-[10px] text-muted-foreground/60 font-mono border border-border rounded px-1.5 py-0.5">
+                    Esc
+                  </kbd>
+                </div>
 
-                      {item.task && (
-                        <>
+                <div className="max-h-[360px] overflow-y-auto py-1.5">
+                  {items.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-[12px] text-muted-foreground">No matches</div>
+                  ) : (
+                    items.map((item, idx) => (
+                      <div
+                        key={item.id}
+                        onMouseEnter={() => setSelectedIndex(idx)}
+                        className={`w-full flex items-center gap-2 px-4 py-2 transition-colors ${
+                          idx === selectedIndex ? 'bg-secondary' : ''
+                        }`}
+                      >
+                        {item.task ? (
+                          <button
+                            onClick={() =>
+                              item.task!.status === 'DONE'
+                                ? undoTaskCompletion(item.task!.id)
+                                : completeTask(item.task!.id, item.task!.estimatedMinutes)
+                            }
+                            title="Complete"
+                            className="text-muted-foreground hover:text-primary transition-colors shrink-0"
+                          >
+                            {item.icon}
+                          </button>
+                        ) : (
+                          <span className="text-muted-foreground shrink-0">{item.icon}</span>
+                        )}
+
+                        <button onClick={() => item.action()} className="flex-1 min-w-0 text-left">
+                          <span className="text-[13px] text-foreground truncate block">{item.label}</span>
+                        </button>
+
+                        {item.task && (
                           <button
                             onClick={() => openScheduleModal(item.task!)}
                             title="Schedule"
@@ -237,33 +296,18 @@ export function CommandPalette() {
                           >
                             <Calendar className="h-3.5 w-3.5" />
                           </button>
-                          <select
-                            value={item.task.status}
-                            onChange={(e) => updateTaskStatus(item.task!.id, e.target.value as TaskStatus)}
-                            title="Move"
-                            className="bg-transparent text-[10px] text-muted-foreground font-mono focus:outline-none shrink-0 max-w-[72px]"
-                          >
-                            {MOVE_TARGETS.map((m) => (
-                              <option key={m.value} value={m.value}>
-                                {m.label}
-                              </option>
-                            ))}
-                            {!MOVE_TARGETS.some((m) => m.value === item.task!.status) && (
-                              <option value={item.task.status}>{item.task.status}</option>
-                            )}
-                          </select>
-                        </>
-                      )}
+                        )}
 
-                      {!item.task && item.hint && (
-                        <span className="text-[10px] text-muted-foreground font-mono shrink-0">{item.hint}</span>
-                      )}
-                      {idx === selectedIndex && <ArrowRight className="h-3.5 w-3.5 text-primary shrink-0" />}
-                    </div>
-                  ))
-                )}
-              </div>
-            </motion.div>
+                        {!item.task && item.hint && (
+                          <span className="text-[10px] text-muted-foreground font-mono shrink-0">{item.hint}</span>
+                        )}
+                        {idx === selectedIndex && <ArrowRight className="h-3.5 w-3.5 text-primary shrink-0" />}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </motion.div>
+            )}
           </>
         )}
       </AnimatePresence>

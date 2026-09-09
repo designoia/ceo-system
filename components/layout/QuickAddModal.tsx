@@ -5,9 +5,11 @@ import { X, ArrowRight, Zap, Target } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { BusinessCode, TaskPriority, TaskStatus } from '@/lib/types';
 import { classifyTask } from '@/lib/ai-heuristics';
+import { useCloseOnRouteChange } from '@/lib/hooks/useCloseOnRouteChange';
 
 export function QuickAddModal() {
   const { isQuickAddOpen, setQuickAddOpen, addTask, businesses, projects } = useStore();
+  useCloseOnRouteChange(isQuickAddOpen, () => setQuickAddOpen(false));
   const [title, setTitle] = useState('');
   const [businessCode, setBusinessCode] = useState<BusinessCode>('COL');
   const [businessTouched, setBusinessTouched] = useState(false);
