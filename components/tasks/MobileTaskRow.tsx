@@ -2,12 +2,15 @@
 
 import React, { useRef, useState } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
-import { CheckCircle2, Calendar, Target, AlertCircle, MoreHorizontal } from 'lucide-react';
+import { Calendar, Target, AlertCircle, MoreHorizontal } from 'lucide-react';
 import { Task, Project, Business } from '@/lib/types';
 import { formatMinutes } from '@/lib/utils';
+import { AnimatedCheckmark } from '@/components/motion/AnimatedCheckmark';
+import { DESIGNOIA_MOTION } from '@/lib/motion';
 
 const SWIPE_THRESHOLD = 90;
 const LONG_PRESS_MS = 450;
+const COMPLETE_SEQUENCE_MS = 350; // checkbox draws its check, then the row fades/moves
 
 export function MobileTaskRow({
   task,
@@ -29,7 +32,8 @@ export function MobileTaskRow({
   const x = useMotionValue(0);
   const completeOpacity = useTransform(x, [0, SWIPE_THRESHOLD], [0, 1]);
   const rescheduleOpacity = useTransform(x, [-SWIPE_THRESHOLD, 0], [1, 0]);
-  const isDone = task.status === 'DONE';
+  const [completingLocal, setCompletingLocal] = useState(false);
+  const isDone = task.status === 'DONE' || completingLocal;
 
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [suppressClick, setSuppressClick] = useState(false);
@@ -46,6 +50,21 @@ export function MobileTaskRow({
     if (pressTimer.current) clearTimeout(pressTimer.current);
   };
 
+  // Optimistic UI: check the box immediately, let the checkmark finish
+  // drawing, then commit the completion (which removes the row from
+  // whatever filtered list it's in, triggering the exit fade).
+  const runCompleteSequence = () => {
+    if (task.status === 'DONE') {
+      onComplete(task);
+      return;
+    }
+    setCompletingLocal(true);
+    setTimeout(() => {
+      onComplete(task);
+      setCompletingLocal(false);
+    }, COMPLETE_SEQUENCE_MS);
+  };
+
   return (
     <div className="relative overflow-hidden">
       {/* Swipe action backgrounds */}
@@ -53,7 +72,6 @@ export function MobileTaskRow({
         style={{ opacity: completeOpacity }}
         className="absolute inset-y-0 left-0 right-0 flex items-center px-4 bg-emerald-500/15"
       >
-        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
         <span className="ml-2 text-[12px] font-medium text-emerald-500">Complete</span>
       </motion.div>
       <motion.div
@@ -71,8 +89,8 @@ export function MobileTaskRow({
         style={{ x }}
         onDragEnd={(_, info) => {
           if (info.offset.x > SWIPE_THRESHOLD) {
-            onComplete(task);
             animate(x, 0, { duration: 0.25 });
+            runCompleteSequence();
           } else if (info.offset.x < -SWIPE_THRESHOLD) {
             onReschedule(task);
             animate(x, 0, { duration: 0.25 });
@@ -86,10 +104,12 @@ export function MobileTaskRow({
         onClick={() => {
           if (!suppressClick) onOpen(task);
         }}
+        animate={completingLocal ? { opacity: 0.5 } : { opacity: 1 }}
+        transition={DESIGNOIA_MOTION.taskCompletion}
         className="relative w-full flex items-center gap-3 px-4 py-3 min-h-[56px] surface-1 active:bg-secondary/40 transition-colors"
       >
-        <span className="shrink-0 text-muted-foreground">
-          {isDone ? <CheckCircle2 className="h-5 w-5 text-emerald-500" /> : <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/40" />}
+        <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
+          <AnimatedCheckmark checked={isDone} onToggle={runCompleteSequence} size={22} />
         </span>
 
         <div className="min-w-0 flex-1">
