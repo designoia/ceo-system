@@ -2,11 +2,20 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, Clock, CheckCircle2, Circle, Trash2, ChevronRight } from 'lucide-react';
+import { X, Calendar, Clock, CheckCircle2, Circle, Trash2, ChevronRight, Users } from 'lucide-react';
 import { useStore } from '@/lib/store';
-import { Task, TaskPriority } from '@/lib/types';
+import { Task, TaskPriority, TaskDelegation } from '@/lib/types';
+import { useIsMobile } from '@/lib/hooks/useIsMobile';
+import { DESIGNOIA_MOTION } from '@/lib/motion';
 
 const PRIORITIES: TaskPriority[] = ['P1', 'P2', 'P3'];
+const DELEGATIONS: { value: TaskDelegation; label: string }[] = [
+  { value: 'YOU', label: 'You' },
+  { value: 'TEAM', label: 'Team' },
+  { value: 'AUTOMATION', label: 'Automation' },
+  { value: 'AI', label: 'AI' },
+  { value: 'WAITING', label: 'Waiting' },
+];
 
 export function TaskDrawer({
   task,
@@ -19,6 +28,7 @@ export function TaskDrawer({
 }) {
   const { projects, businesses, updateTask, completeTask, undoTaskCompletion, deleteTask, getSubtasks, getSubtaskProgress } = useStore();
   const [notes, setNotes] = useState('');
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     setNotes(task?.notes || '');
@@ -52,12 +62,27 @@ export function TaskDrawer({
             className="fixed inset-0 z-50 bg-black/50"
           />
           <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed inset-y-0 right-0 z-50 w-full sm:w-[420px] surface-1 border-l border-border shadow-2xl flex flex-col"
+            drag={isMobile ? 'y' : false}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.4 }}
+            onDragEnd={(_, info) => {
+              if (isMobile && (info.offset.y > 120 || info.velocity.y > 500)) onClose();
+            }}
+            initial={isMobile ? { y: '100%' } : { x: '100%' }}
+            animate={isMobile ? { y: 0 } : { x: 0 }}
+            exit={isMobile ? { y: '100%' } : { x: '100%' }}
+            transition={DESIGNOIA_MOTION.bottomSheet}
+            className={
+              isMobile
+                ? 'fixed inset-x-0 bottom-0 z-50 max-h-[92vh] surface-1 border-t border-border shadow-2xl flex flex-col rounded-t-2xl'
+                : 'fixed inset-y-0 right-0 z-50 w-full sm:w-[420px] surface-1 border-l border-border shadow-2xl flex flex-col'
+            }
           >
+            {isMobile && (
+              <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+                <div className="h-1 w-9 rounded-full bg-border" />
+              </div>
+            )}
             {/* Header */}
             <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border">
               <div className="min-w-0 flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -145,6 +170,47 @@ export function TaskDrawer({
                   className="w-full bg-transparent text-[13px] font-medium text-foreground mt-0.5 focus:outline-none"
                 />
               </div>
+
+              {/* Delegation */}
+              <div className="rounded-lg border border-border px-3 py-2.5">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center gap-1 mb-1">
+                  <Users className="h-3 w-3" /> Owner
+                </span>
+                <div className="flex flex-wrap items-center gap-1">
+                  {DELEGATIONS.map((d) => (
+                    <button
+                      key={d.value}
+                      onClick={() => updateTask(task.id, { delegation: d.value })}
+                      className={`rounded px-2 py-1 text-[11px] font-medium transition-colors ${
+                        (task.delegation || 'YOU') === d.value
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground hover:bg-secondary'
+                      }`}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+                {task.delegation === 'WAITING' && (
+                  <input
+                    type="text"
+                    value={task.waitingOn || ''}
+                    onChange={(e) => updateTask(task.id, { waitingOn: e.target.value })}
+                    placeholder="Waiting on…"
+                    className="w-full bg-transparent text-[12px] text-foreground placeholder:text-muted-foreground/60 mt-2 pt-2 border-t border-border/60 focus:outline-none"
+                  />
+                )}
+              </div>
+
+              <label className="flex items-center gap-2 text-[12px] text-muted-foreground px-1">
+                <input
+                  type="checkbox"
+                  checked={Boolean(task.isDecision)}
+                  onChange={(e) => updateTask(task.id, { isDecision: e.target.checked })}
+                  className="h-3.5 w-3.5 rounded accent-primary"
+                />
+                <span>Needs a decision from you (adds to Decision Queue)</span>
+              </label>
 
               {/* Notes */}
               <div className="space-y-1">

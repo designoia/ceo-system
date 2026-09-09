@@ -103,6 +103,11 @@ export interface Task {
   deletedAt?: string;
   updatedAt?: string;
 
+  // CEO Delegation & Decision Model
+  delegation?: TaskDelegation; // Who owns execution — defaults to YOU when unset
+  isDecision?: boolean; // Surfaces in the Decision Queue instead of the task list
+  waitingOn?: string; // Free-text: what/who this is blocked waiting on
+
   // Google Integration Fields
   source?: TaskSource;
   externalTaskId?: string;
@@ -116,6 +121,8 @@ export interface Task {
 }
 
 export type TaskSource = 'CEO_OS' | 'GOOGLE_TASKS';
+
+export type TaskDelegation = 'YOU' | 'TEAM' | 'AUTOMATION' | 'AI' | 'WAITING';
 
 export type SyncStatus = 
   | 'SYNCED' 

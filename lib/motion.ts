@@ -39,6 +39,20 @@ export const MOTION_SPRINGS = {
   },
 } as const;
 
+/**
+ * Designoia Motion System — named tokens matching the mobile/CEO
+ * productivity spec exactly. Prefer these for new components; the
+ * generic MOTION_DURATIONS/SPRINGS above remain for existing usage.
+ */
+export const DESIGNOIA_MOTION = {
+  pageTransition: { duration: 0.2, ease: MOTION_EASINGS.standard },
+  bottomSheet: { type: 'spring', stiffness: 380, damping: 34, mass: 0.9 }, // ~280ms settle
+  taskCompletion: { duration: 0.35, ease: MOTION_EASINGS.enter },
+  buttonPress: { scale: 0.97, transition: { duration: 0.12, ease: 'easeOut' } },
+  cardHover: { y: -1.5, transition: { duration: 0.15, ease: 'easeOut' } },
+  navActive: { type: 'spring', stiffness: 450, damping: 30 },
+} as const;
+
 export const VARIANTS = {
   taskCardEntrance: {
     initial: { opacity: 0, scale: 0.96, y: -8 },
