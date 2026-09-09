@@ -13,6 +13,8 @@ import {
   Calendar,
   Layers,
   Clock,
+  HelpCircle,
+  Users,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { useTaskLifecycle } from '@/lib/hooks/useTaskLifecycle';
@@ -26,12 +28,16 @@ import { RestoreTaskModal } from '@/components/tasks/RestoreTaskModal';
 import { DeleteConfirmationModal } from '@/components/tasks/DeleteConfirmationModal';
 import { TrashModal } from '@/components/tasks/TrashModal';
 
-const STATUS_COLUMNS: { key: TaskStatus; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+type TabKey = TaskStatus | 'ALL' | 'DECISIONS' | 'WAITING';
+
+const STATUS_COLUMNS: { key: TabKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: 'TODAY', label: 'Today', icon: Target },
   { key: 'OVERDUE', label: 'Overdue', icon: AlertCircle },
   { key: 'THIS_WEEK', label: 'This Week', icon: Calendar },
   { key: 'NEXT', label: 'Next Up', icon: Layers },
   { key: 'INBOX', label: 'Inbox', icon: Inbox },
+  { key: 'DECISIONS', label: 'Decisions', icon: HelpCircle },
+  { key: 'WAITING', label: 'Waiting', icon: Users },
   { key: 'BLOCKED', label: 'Blocked', icon: AlertCircle },
   { key: 'BACKLOG', label: 'Backlog', icon: Clock },
   { key: 'DONE', label: 'Done', icon: CheckCircle2 },
@@ -52,7 +58,7 @@ export default function TasksPage() {
 
   const { deleteWithUndo } = useTaskLifecycle();
 
-  const [activeTab, setActiveTab] = useState<TaskStatus | 'ALL'>('TODAY');
+  const [activeTab, setActiveTab] = useState<TabKey>('TODAY');
   const [filterBusiness, setFilterBusiness] = useState<BusinessCode | 'ALL'>('ALL');
   const [sortBy, setSortBy] = useState<'PRIORITY' | 'TIME' | 'CREATED'>('PRIORITY');
   const [openTask, setOpenTask] = useState<Task | null>(null);
@@ -66,7 +72,11 @@ export default function TasksPage() {
     .filter((t) => {
       if (t.isDeleted) return false;
       if (t.parentTaskId) return false;
-      const matchesTab = activeTab === 'ALL' ? true : t.status === activeTab;
+      let matchesTab: boolean;
+      if (activeTab === 'ALL') matchesTab = true;
+      else if (activeTab === 'DECISIONS') matchesTab = Boolean(t.isDecision) && t.status !== 'DONE';
+      else if (activeTab === 'WAITING') matchesTab = t.delegation === 'WAITING' && t.status !== 'DONE';
+      else matchesTab = t.status === activeTab;
       const matchesBiz = filterBusiness === 'ALL' ? true : t.businessCode === filterBusiness;
       return matchesTab && matchesBiz;
     })
@@ -147,7 +157,12 @@ export default function TasksPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
         <div className="flex flex-wrap items-center gap-1">
           {STATUS_COLUMNS.map((col) => {
-            const count = tasks.filter((t) => !t.isDeleted && t.status === col.key && !t.parentTaskId).length;
+            const count = tasks.filter((t) => {
+              if (t.isDeleted || t.parentTaskId) return false;
+              if (col.key === 'DECISIONS') return Boolean(t.isDecision) && t.status !== 'DONE';
+              if (col.key === 'WAITING') return t.delegation === 'WAITING' && t.status !== 'DONE';
+              return t.status === col.key;
+            }).length;
             const Icon = col.icon;
             const isActive = activeTab === col.key;
 
