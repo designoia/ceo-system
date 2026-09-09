@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Moon, Sparkles } from 'lucide-react';
 import { getGreeting, getFormattedDate } from '@/lib/utils';
 import { CommandCenter } from '@/components/dashboard/CommandCenter';
+import { MobileCeoHome } from '@/components/dashboard/MobileCeoHome';
 import { TaskDrawer } from '@/components/tasks/TaskDrawer';
 import { OverdueBanner } from '@/components/dashboard/OverdueBanner';
 import { OverdueReviewModal } from '@/components/dashboard/OverdueReviewModal';
@@ -36,7 +37,7 @@ export default function HomePage() {
           </h2>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="hidden md:flex flex-wrap items-center gap-1.5">
           <button
             onClick={() => setMorningPlanOpen(true)}
             className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
@@ -65,7 +66,12 @@ export default function HomePage() {
 
       <OverdueBanner />
 
-      <CommandCenter onOpenTask={(t) => setOpenTask(t)} />
+      <div className="hidden md:block">
+        <CommandCenter onOpenTask={(t) => setOpenTask(t)} />
+      </div>
+      <div className="md:hidden">
+        <MobileCeoHome onOpenTask={(t) => setOpenTask(t)} />
+      </div>
 
       <TaskDrawer
         task={openTask}
