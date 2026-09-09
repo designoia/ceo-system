@@ -9,11 +9,13 @@ import {
   ChevronRight,
   Moon,
   BarChart3,
+  Wand2,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { ScheduleEntry, ScheduleActivityType } from '@/lib/types';
 import { PageTransition } from '@/components/motion/PageTransition';
 import { ExecutiveTimeline } from '@/components/schedule/ExecutiveTimeline';
+import { computeAutoSchedule } from '@/lib/scheduling';
 import { ScheduleMobileCards } from '@/components/schedule/ScheduleMobileCards';
 import { PlanTomorrowModal } from '@/components/schedule/PlanTomorrowModal';
 import { ScheduleBlockModal } from '@/components/schedule/ScheduleBlockModal';
@@ -28,6 +30,7 @@ export default function SchedulePage() {
     selectedScheduleDate,
     setSelectedScheduleDate,
     scheduleEntries,
+    tasks,
     todayCapacityMinutes,
     settings,
     mustWinTask,
@@ -37,10 +40,12 @@ export default function SchedulePage() {
     setPlanTomorrowOpen,
     setScheduleReviewOpen,
     setTodayDifferentModalOpen,
+    scheduleTaskOnCalendar,
   } = useStore();
 
   const [rescheduleTargetEntry, setRescheduleTargetEntry] = useState<ScheduleEntry | null>(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [autoScheduleMsg, setAutoScheduleMsg] = useState<string | null>(null);
 
   const todayStr = getTodayDateString(settings.timezone || 'Asia/Kolkata');
   const isToday = selectedScheduleDate === todayStr;
@@ -63,6 +68,29 @@ export default function SchedulePage() {
     (e) => e.date === selectedScheduleDate && (scheduleFilterActivity === 'ALL' || e.activityType === scheduleFilterActivity)
   );
 
+  const unscheduledForDay = tasks.filter(
+    (t) =>
+      !t.isDeleted &&
+      !t.parentTaskId &&
+      t.status !== 'DONE' &&
+      (t.status === 'TODAY' || t.scheduledDate === selectedScheduleDate) &&
+      !scheduleEntries.some((e) => e.date === selectedScheduleDate && e.taskId === t.id)
+  );
+
+  const handleScheduleMyDay = () => {
+    const { placements, unplaced } = computeAutoSchedule(unscheduledForDay, scheduleEntries, selectedScheduleDate);
+    placements.forEach((p) => scheduleTaskOnCalendar(p.taskId, p.date, p.startTime, p.endTime, false));
+
+    if (placements.length === 0) {
+      setAutoScheduleMsg('Nothing to schedule — no unscheduled tasks for today.');
+    } else if (unplaced.length > 0) {
+      setAutoScheduleMsg(`Scheduled ${placements.length} task${placements.length > 1 ? 's' : ''}. ${unplaced.length} didn't fit — day is full.`);
+    } else {
+      setAutoScheduleMsg(`Scheduled ${placements.length} task${placements.length > 1 ? 's' : ''} into today's free time.`);
+    }
+    setTimeout(() => setAutoScheduleMsg(null), 5000);
+  };
+
   return (
     <PageTransition className="space-y-5 max-w-5xl mx-auto">
       {/* Header */}
@@ -78,8 +106,16 @@ export default function SchedulePage() {
 
         <div className="flex flex-wrap items-center gap-1.5">
           <button
+            onClick={handleScheduleMyDay}
+            disabled={unscheduledForDay.length === 0}
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+          >
+            <Wand2 className="h-3.5 w-3.5" />
+            <span>Schedule My Day</span>
+          </button>
+          <button
             onClick={() => setAddBlockModalOpen(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
             <span>Add Block</span>
@@ -100,6 +136,12 @@ export default function SchedulePage() {
           </button>
         </div>
       </div>
+
+      {autoScheduleMsg && (
+        <div className="rounded-lg border border-primary/25 bg-primary/[0.06] px-3.5 py-2 text-[12px] text-primary">
+          {autoScheduleMsg}
+        </div>
+      )}
 
       {/* Context strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[12px]">
