@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   CheckCircle2, 
@@ -41,8 +41,11 @@ export function GoogleConnectionCard() {
   const [simTaskTitle, setSimTaskTitle] = useState('');
   const [simEventTitle, setSimEventTitle] = useState('');
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+  const [hasMounted, setHasMounted] = useState(false);
 
-  const isConnected = googleConnection?.status === 'CONNECTED';
+  useEffect(() => setHasMounted(true), []);
+
+  const isConnected = hasMounted && googleConnection?.status === 'CONNECTED';
 
   const handleSyncNow = async () => {
     try {
@@ -130,7 +133,7 @@ export function GoogleConnectionCard() {
             ) : (
               <button
                 type="button"
-                onClick={() => connectGoogle()}
+                onClick={() => { window.location.href = '/api/integrations/google/connect?returnTo=/settings'; }}
                 className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90 transition-all shadow-md min-h-[44px]"
               >
                 <span>Connect Google</span>

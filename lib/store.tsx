@@ -308,7 +308,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<UserSettings>(INITIAL_SETTINGS);
 
   // Google Integration State
-  const [googleConnection, setGoogleConnection] = useState<GoogleConnection | null>(INITIAL_GOOGLE_CONNECTION);
+  const [googleConnection, setGoogleConnection] = useState<GoogleConnection | null>(() => {
+    if (typeof window === 'undefined') return INITIAL_GOOGLE_CONNECTION;
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.GOOGLE_CONNECTION);
+      return stored ? JSON.parse(stored) : INITIAL_GOOGLE_CONNECTION;
+    } catch {
+      return INITIAL_GOOGLE_CONNECTION;
+    }
+  });
   const [taskListMappings, setTaskListMappings] = useState<GoogleTaskListMapping[]>(INITIAL_TASK_LIST_MAPPINGS);
   const [googleTaskMappings, setGoogleTaskMappings] = useState<GoogleTaskMapping[]>(INITIAL_GOOGLE_TASK_MAPPINGS);
   const [googleCalendarMappings, setGoogleCalendarMappings] = useState<GoogleCalendarMapping[]>(INITIAL_GOOGLE_CALENDAR_MAPPINGS);
@@ -473,14 +481,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setScheduleDayReviews(JSON.parse(storedSchedReviews));
       } else {
         setScheduleDayReviews(INITIAL_SCHEDULE_DAY_REVIEWS);
-      }
-
-      // Load Google Integration State
-      const storedGoogleConn = localStorage.getItem(STORAGE_KEYS.GOOGLE_CONNECTION);
-      if (storedGoogleConn) {
-        setGoogleConnection(JSON.parse(storedGoogleConn));
-      } else {
-        setGoogleConnection(INITIAL_GOOGLE_CONNECTION);
       }
 
       const storedGoogleLists = localStorage.getItem(STORAGE_KEYS.GOOGLE_TASK_LIST_MAPPINGS);

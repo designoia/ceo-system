@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { 
   Download, 
   Upload, 
@@ -29,22 +30,41 @@ const TIMEZONES = [
 ];
 
 export default function SettingsPage() {
-  const { 
-    settings, 
-    updateSettings, 
+  const {
+    settings,
+    updateSettings,
     activityLogs,
     deletedTasks,
-    resetToDemoData, 
-    exportDataJSON, 
-    exportTasksCSV, 
-    importDataJSON 
+    resetToDemoData,
+    exportDataJSON,
+    exportTasksCSV,
+    importDataJSON,
+    connectGoogle,
   } = useStore();
+
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<'INTEGRATIONS' | 'GENERAL' | 'BACKUP'>('INTEGRATIONS');
   const [isTrashOpen, setIsTrashOpen] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
   const [savedSettingMsg, setSavedSettingMsg] = useState<string | null>(null);
+  const [oauthError, setOauthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const connected = searchParams.get('google_connected');
+    const email = searchParams.get('google_email');
+    const error = searchParams.get('error');
+
+    if (connected === 'true' && email) {
+      connectGoogle(email);
+      router.replace('/settings');
+    } else if (error) {
+      setOauthError(error);
+      router.replace('/settings');
+    }
+  }, [searchParams, connectGoogle, router]);
 
   const handleDownloadJSON = () => {
     const jsonStr = exportDataJSON();
@@ -120,6 +140,12 @@ export default function SettingsPage() {
           Google Tasks + Calendar bidirectional sync, timezones, work capacity, and backups.
         </p>
       </div>
+
+      {oauthError && (
+        <div className="rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-2 text-xs font-semibold text-destructive flex items-center gap-2 animate-in fade-in">
+          <span>Google connection failed: {oauthError}</span>
+        </div>
+      )}
 
       {savedSettingMsg && (
         <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 text-xs font-semibold text-emerald-500 flex items-center gap-2 animate-in fade-in">
