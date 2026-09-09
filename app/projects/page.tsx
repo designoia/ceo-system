@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, Suspense, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertTriangle,
@@ -23,6 +24,21 @@ const STATUS_DOT: Record<ProjectStatus, string> = {
   COMPLETED: 'bg-primary',
   ARCHIVED: 'bg-muted-foreground',
 };
+
+function OpenNewProjectFromQuery({ onOpen }: { onOpen: () => void }) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      onOpen();
+      router.replace('/projects');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  return null;
+}
 
 export default function ProjectsPage() {
   const {
@@ -105,6 +121,15 @@ export default function ProjectsPage() {
 
   return (
     <PageTransition className="space-y-6">
+      <Suspense fallback={null}>
+        <OpenNewProjectFromQuery
+          onOpen={() => {
+            setParentProjectId('');
+            setShowAddModal(true);
+          }}
+        />
+      </Suspense>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

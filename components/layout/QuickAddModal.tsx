@@ -16,13 +16,10 @@ export function QuickAddModal() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Global shortcut listener for ⌘K / Ctrl+K
+  // Cmd/Ctrl+K is owned by the global CommandPalette, which opens this
+  // modal via the "Add Task" command. Only Escape-to-close lives here.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setQuickAddOpen(!isQuickAddOpen);
-      }
       if (e.key === 'Escape' && isQuickAddOpen) {
         setQuickAddOpen(false);
       }

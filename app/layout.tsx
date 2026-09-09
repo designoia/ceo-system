@@ -6,6 +6,7 @@ import { Header } from '@/components/layout/Header';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { QuickAddModal } from '@/components/layout/QuickAddModal';
+import { CommandPalette } from '@/components/layout/CommandPalette';
 import { FocusModeModal } from '@/components/focus/FocusModeModal';
 import { WelcomeBackModal } from '@/components/dashboard/WelcomeBackModal';
 import { OverdueReviewModal } from '@/components/dashboard/OverdueReviewModal';
@@ -71,6 +72,7 @@ export default function RootLayout({
           {/* Global Modals & Notifications */}
           <FocusModeModal />
           <QuickAddModal />
+          <CommandPalette />
           <WelcomeBackModal />
           <OverdueReviewModal />
           <MustWinCarryForwardModal />

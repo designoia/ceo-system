@@ -106,6 +106,7 @@ interface StoreContextType {
   activeFocusTask: Task | null;
   focusMode: 'NORMAL' | 'RESCUE_10MIN' | null;
   isQuickAddOpen: boolean;
+  isCommandPaletteOpen: boolean;
   isOverdueReviewOpen: boolean;
   welcomeBackInfo: { isReturning: boolean; daysMissed: number; lastTask: Task | null } | null;
   mustWinCarryForwardTask: Task | null;
@@ -184,6 +185,7 @@ interface StoreContextType {
 
   // Actions
   setQuickAddOpen: (open: boolean) => void;
+  setCommandPaletteOpen: (open: boolean) => void;
   setOverdueReviewOpen: (open: boolean) => void;
   startFocus: (task: Task, mode?: 'NORMAL' | 'RESCUE_10MIN') => void;
   stopFocus: () => void;
@@ -361,6 +363,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [activeFocusTask, setActiveFocusTask] = useState<Task | null>(null);
   const [focusMode, setFocusMode] = useState<'NORMAL' | 'RESCUE_10MIN' | null>(null);
   const [isQuickAddOpen, setQuickAddOpen] = useState(false);
+  const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [isOverdueReviewOpen, setOverdueReviewOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -2258,6 +2261,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     activeFocusTask,
     focusMode,
     isQuickAddOpen,
+    isCommandPaletteOpen,
     isOverdueReviewOpen,
     welcomeBackInfo,
     mustWinCarryForwardTask,
@@ -2341,6 +2345,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Standard Actions
     setQuickAddOpen,
+    setCommandPaletteOpen,
     setOverdueReviewOpen,
     startFocus,
     stopFocus,

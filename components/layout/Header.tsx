@@ -6,7 +6,7 @@ import { useStore } from '@/lib/store';
 import { NotificationService } from '@/lib/notification-service';
 
 export function Header() {
-  const { setQuickAddOpen, settings } = useStore();
+  const { setCommandPaletteOpen, settings } = useStore();
 
   const handleEnableNotifications = async () => {
     const perm = await NotificationService.requestPermission();
@@ -47,7 +47,7 @@ export function Header() {
 
         <button
           id="global-quick-add-btn"
-          onClick={() => setQuickAddOpen(true)}
+          onClick={() => setCommandPaletteOpen(true)}
           className="flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs sm:text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
         >
           <Plus className="h-4 w-4" />
