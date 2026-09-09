@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { 
   Download, 
@@ -29,6 +29,33 @@ const TIMEZONES = [
   { value: 'Asia/Singapore', label: 'Singapore (SGT - Singapore)' },
 ];
 
+function GoogleOAuthCallbackHandler({
+  onConnected,
+  onError,
+}: {
+  onConnected: (email: string) => void;
+  onError: (error: string) => void;
+}) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  useEffect(() => {
+    const connected = searchParams.get('google_connected');
+    const email = searchParams.get('google_email');
+    const error = searchParams.get('error');
+
+    if (connected === 'true' && email) {
+      onConnected(email);
+      router.replace('/settings');
+    } else if (error) {
+      onError(error);
+      router.replace('/settings');
+    }
+  }, [searchParams, onConnected, onError, router]);
+
+  return null;
+}
+
 export default function SettingsPage() {
   const {
     settings,
@@ -42,29 +69,12 @@ export default function SettingsPage() {
     connectGoogle,
   } = useStore();
 
-  const searchParams = useSearchParams();
-  const router = useRouter();
-
   const [activeTab, setActiveTab] = useState<'INTEGRATIONS' | 'GENERAL' | 'BACKUP'>('INTEGRATIONS');
   const [isTrashOpen, setIsTrashOpen] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
   const [savedSettingMsg, setSavedSettingMsg] = useState<string | null>(null);
   const [oauthError, setOauthError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const connected = searchParams.get('google_connected');
-    const email = searchParams.get('google_email');
-    const error = searchParams.get('error');
-
-    if (connected === 'true' && email) {
-      connectGoogle(email);
-      router.replace('/settings');
-    } else if (error) {
-      setOauthError(error);
-      router.replace('/settings');
-    }
-  }, [searchParams, connectGoogle, router]);
 
   const handleDownloadJSON = () => {
     const jsonStr = exportDataJSON();
@@ -128,6 +138,12 @@ export default function SettingsPage() {
 
   return (
     <PageTransition className="space-y-6">
+      <Suspense fallback={null}>
+        <GoogleOAuthCallbackHandler
+          onConnected={(email) => connectGoogle(email)}
+          onError={(error) => setOauthError(error)}
+        />
+      </Suspense>
       {/* Header */}
       <div>
         <div className="text-xs font-bold uppercase tracking-widest text-primary">
