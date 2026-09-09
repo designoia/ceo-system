@@ -19,6 +19,8 @@ import { useTaskLifecycle } from '@/lib/hooks/useTaskLifecycle';
 import { Task, TaskStatus, BusinessCode } from '@/lib/types';
 import { PageTransition } from '@/components/motion/PageTransition';
 import { TaskRow } from '@/components/tasks/TaskRow';
+import { MobileTaskRow } from '@/components/tasks/MobileTaskRow';
+import { TaskActionsSheet } from '@/components/tasks/TaskActionsSheet';
 import { TaskDrawer } from '@/components/tasks/TaskDrawer';
 import { RestoreTaskModal } from '@/components/tasks/RestoreTaskModal';
 import { DeleteConfirmationModal } from '@/components/tasks/DeleteConfirmationModal';
@@ -54,6 +56,7 @@ export default function TasksPage() {
   const [filterBusiness, setFilterBusiness] = useState<BusinessCode | 'ALL'>('ALL');
   const [sortBy, setSortBy] = useState<'PRIORITY' | 'TIME' | 'CREATED'>('PRIORITY');
   const [openTask, setOpenTask] = useState<Task | null>(null);
+  const [actionsTask, setActionsTask] = useState<Task | null>(null);
 
   const [taskToRestore, setTaskToRestore] = useState<Task | null>(null);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
@@ -101,6 +104,13 @@ export default function TasksPage() {
         task={openTask}
         onClose={() => setOpenTask(null)}
         onSchedule={(t) => openScheduleModal(t)}
+      />
+
+      <TaskActionsSheet
+        task={actionsTask}
+        onClose={() => setActionsTask(null)}
+        onSchedule={(t) => openScheduleModal(t)}
+        onOpenDetail={(t) => setOpenTask(t)}
       />
 
       {/* Header */}
@@ -229,16 +239,31 @@ export default function TasksPage() {
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.18 }}
                 >
-                  <TaskRow
-                    task={task}
-                    project={project}
-                    business={biz}
-                    subtaskProgress={subProgress}
-                    onOpen={(t) => setOpenTask(t)}
-                    onToggleComplete={(t) =>
-                      t.status === 'DONE' ? undoTaskCompletion(t.id) : completeTask(t.id, t.estimatedMinutes)
-                    }
-                  />
+                  <div className="hidden md:block">
+                    <TaskRow
+                      task={task}
+                      project={project}
+                      business={biz}
+                      subtaskProgress={subProgress}
+                      onOpen={(t) => setOpenTask(t)}
+                      onToggleComplete={(t) =>
+                        t.status === 'DONE' ? undoTaskCompletion(t.id) : completeTask(t.id, t.estimatedMinutes)
+                      }
+                    />
+                  </div>
+                  <div className="md:hidden">
+                    <MobileTaskRow
+                      task={task}
+                      project={project}
+                      business={biz}
+                      onOpen={(t) => setOpenTask(t)}
+                      onComplete={(t) =>
+                        t.status === 'DONE' ? undoTaskCompletion(t.id) : completeTask(t.id, t.estimatedMinutes)
+                      }
+                      onReschedule={(t) => openScheduleModal(t)}
+                      onLongPress={(t) => setActionsTask(t)}
+                    />
+                  </div>
                 </motion.div>
               );
             })}
