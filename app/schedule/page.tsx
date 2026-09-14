@@ -103,7 +103,7 @@ export default function SchedulePage() {
       !t.isDeleted &&
       !t.parentTaskId &&
       t.status !== 'DONE' &&
-      (t.status === 'TODAY' || t.scheduledDate === selectedScheduleDate) &&
+      t.status !== 'BLOCKED' &&
       !scheduleEntries.some((e) => e.date === selectedScheduleDate && e.taskId === t.id)
   );
 
