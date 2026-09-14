@@ -603,30 +603,79 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
   }, [tasks, isLoaded]);
 
-  // Pull tasks from Supabase once on load — picks up anything the
-  // background cron (Vercel Cron) synced from Google while the app was
-  // closed. Merges by id, preferring the Supabase copy when both exist.
-  useEffect(() => {
-    if (!isLoaded || typeof window === 'undefined') return;
+  // Pull tasks from Supabase on load, then periodically re-poll (and on
+  // window focus / visibility regain) so edits made on another device
+  // (e.g. mobile) show up on an already-open tab without a full reload.
+  // Merge is last-write-wins per task, comparing updatedAt/lastStatusChangeAt
+  // timestamps rather than blindly preferring the remote copy — this way a
+  // local edit that hasn't been pushed yet (still newer) is never clobbered.
+  const tasksRef = useRef<Task[]>(tasks);
+  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
 
+  const mergeRemoteTasks = useCallback((remoteTasks: Task[]) => {
+    setTasks((prev) => {
+      const byId = new Map(prev.map((t) => [t.id, t]));
+      const getStamp = (t: Task) => {
+        const a = t.updatedAt ? Date.parse(t.updatedAt) : NaN;
+        const b = t.lastStatusChangeAt ? Date.parse(t.lastStatusChangeAt) : NaN;
+        const stamps = [a, b].filter((n) => !Number.isNaN(n));
+        return stamps.length ? Math.max(...stamps) : 0;
+      };
+      let changed = false;
+      for (const remote of remoteTasks) {
+        const local = byId.get(remote.id);
+        if (!local) {
+          byId.set(remote.id, remote);
+          changed = true;
+          continue;
+        }
+        if (getStamp(remote) > getStamp(local)) {
+          byId.set(remote.id, remote);
+          changed = true;
+        }
+        // else: local is newer (or equal) — keep local, don't overwrite.
+      }
+      return changed ? Array.from(byId.values()) : prev;
+    });
+  }, []);
+
+  const pullRemoteTasks = useCallback(() => {
+    if (typeof window === 'undefined') return;
     fetch('/api/tasks')
       .then((r) => r.json())
       .then((data: { configured: boolean; tasks: Task[] }) => {
         if (!data.configured || !data.tasks || data.tasks.length === 0) return;
-        setTasks((prev) => {
-          const byId = new Map(prev.map((t) => [t.id, t]));
-          for (const remote of data.tasks) {
-            byId.set(remote.id, remote);
-          }
-          return Array.from(byId.values());
-        });
+        mergeRemoteTasks(data.tasks);
       })
       .catch(() => {
         // Offline or Supabase not configured — local data remains authoritative.
       });
-    // Intentionally runs once per load, not on every task change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded]);
+  }, [mergeRemoteTasks]);
+
+  useEffect(() => {
+    if (!isLoaded || typeof window === 'undefined') return;
+
+    // Initial pull on load.
+    pullRemoteTasks();
+
+    // Periodic poll so a long-lived tab picks up remote changes.
+    const interval = setInterval(pullRemoteTasks, 45000);
+
+    // Re-pull whenever the tab regains focus/visibility — the moment a user
+    // switches back is the highest-value time to catch up on mobile edits.
+    const onFocus = () => pullRemoteTasks();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') pullRemoteTasks();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [isLoaded, pullRemoteTasks]);
 
   // Push local task changes to Supabase (debounced) so the background cron
   // has an up-to-date picture to reconcile against, and so tasks survive
@@ -1085,6 +1134,52 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     );
     logActivity('TASK', taskId, task.title, 'STATUS_CHANGED', `Status changed to ${status}`);
   }, [tasks, completeTask, logActivity]);
+
+  // Auto-flip tasks to OVERDUE once their due date/time has passed. Runs on
+  // load and every minute thereafter. Mirrors the same fields updateTaskStatus
+  // writes (status, overdueAt, lastStatusChangeAt) so the change persists
+  // through the normal task update -> localStorage -> Supabase push pipeline
+  // instead of a bespoke path. DONE and BLOCKED tasks are never touched.
+  useEffect(() => {
+    if (!isLoaded || typeof window === 'undefined') return;
+
+    const checkOverdue = () => {
+      const now = new Date();
+      setTasks(prev => {
+        let changed = false;
+        const next = prev.map(t => {
+          if (t.isDeleted || t.status === 'DONE' || t.status === 'BLOCKED' || t.status === 'OVERDUE') {
+            return t;
+          }
+          const dueStr = t.dueDate || t.scheduledDate;
+          if (!dueStr) return t;
+
+          // Combine the due date with a due/scheduled time when present,
+          // otherwise treat the due date as end-of-day.
+          const timeStr = t.scheduledTime;
+          const dueDateTime = timeStr
+            ? new Date(`${dueStr}T${timeStr}:00`)
+            : new Date(`${dueStr}T23:59:59`);
+
+          if (Number.isNaN(dueDateTime.getTime()) || dueDateTime > now) return t;
+
+          changed = true;
+          return {
+            ...t,
+            status: 'OVERDUE' as TaskStatus,
+            overdueAt: now.toISOString(),
+            lastStatusChangeAt: now.toISOString(),
+            updatedAt: now.toISOString(),
+          };
+        });
+        return changed ? next : prev;
+      });
+    };
+
+    checkOverdue();
+    const interval = setInterval(checkOverdue, 60000);
+    return () => clearInterval(interval);
+  }, [isLoaded]);
 
   const addTask = useCallback((taskData: Partial<Task> & { title: string }) => {
     const count = tasks.length + 1;

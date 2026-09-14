@@ -1,5 +1,68 @@
 import { Task, ScheduleEntry } from './types';
 
+/** Format a JS Date as a local 'YYYY-MM-DD' string (no UTC shifting). */
+export function toDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Parse a 'YYYY-MM-DD' string into a local Date at midnight. */
+export function parseDateStr(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+export function addDays(dateStr: string, days: number): string {
+  const d = parseDateStr(dateStr);
+  d.setDate(d.getDate() + days);
+  return toDateStr(d);
+}
+
+/** Sunday-start week containing dateStr, returned as 7 'YYYY-MM-DD' strings. */
+export function getWeekDates(dateStr: string): string[] {
+  const d = parseDateStr(dateStr);
+  const dow = d.getDay(); // 0 = Sunday
+  const start = new Date(d);
+  start.setDate(d.getDate() - dow);
+  return Array.from({ length: 7 }, (_, i) => addDays(toDateStr(start), i));
+}
+
+/**
+ * Calendar grid (weeks x 7 days) for the month containing dateStr, padded
+ * with leading/trailing days from adjacent months so every week is complete.
+ * Each cell carries its date string and whether it belongs to the target month.
+ */
+export function getMonthGrid(dateStr: string): { date: string; inMonth: boolean }[][] {
+  const d = parseDateStr(dateStr);
+  const year = d.getFullYear();
+  const month = d.getMonth();
+  const firstOfMonth = new Date(year, month, 1);
+  const startDow = firstOfMonth.getDay();
+  const gridStart = new Date(year, month, 1 - startDow);
+
+  const weeks: { date: string; inMonth: boolean }[][] = [];
+  let cursor = new Date(gridStart);
+  for (let w = 0; w < 6; w++) {
+    const week: { date: string; inMonth: boolean }[] = [];
+    for (let i = 0; i < 7; i++) {
+      week.push({ date: toDateStr(cursor), inMonth: cursor.getMonth() === month });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    weeks.push(week);
+    // Stop once we've completed the month and filled a full last week.
+    if (cursor.getMonth() !== month && w >= 3) break;
+  }
+  return weeks;
+}
+
+/** All 'YYYY-MM-DD' day strings for a given month (0-indexed) of a year. */
+export function getMonthDates(year: number, month: number): string[] {
+  const days = new Date(year, month + 1, 0).getDate();
+  return Array.from({ length: days }, (_, i) => toDateStr(new Date(year, month, i + 1)));
+}
+
 export interface AutoSchedulePlacement {
   taskId: string;
   date: string;

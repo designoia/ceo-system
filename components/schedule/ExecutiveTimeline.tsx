@@ -2,8 +2,11 @@
 
 import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
+import { useDroppable } from '@dnd-kit/core';
 import { useStore } from '@/lib/store';
 import { ScheduleEntry } from '@/lib/types';
+
+export const TIMELINE_SLOT_DROP_PREFIX = 'timeline-slot::';
 
 const START_HOUR = 6;
 const END_HOUR = 24;
@@ -40,12 +43,31 @@ function minutesToTime(mins: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+function TimelineDropSlot({ date, minutes, top, height }: { date: string; minutes: number; top: number; height: number }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `${TIMELINE_SLOT_DROP_PREFIX}${date}::${minutesToTime(minutes)}`,
+    data: { date, startMinutes: minutes },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`absolute left-14 right-2 rounded-md transition-colors ${
+        isOver ? 'bg-primary/15 ring-1 ring-primary/40' : ''
+      }`}
+      style={{ top, height }}
+    />
+  );
+}
+
 export function ExecutiveTimeline({
   entries,
+  date,
   onEditBlock,
   onRescheduleBlock,
 }: {
   entries: ScheduleEntry[];
+  date: string;
   onEditBlock: (entry: ScheduleEntry) => void;
   onRescheduleBlock: (entry: ScheduleEntry) => void;
 }) {
@@ -134,6 +156,17 @@ export function ExecutiveTimeline({
             className="absolute left-0 w-1 rounded-full bg-red-500/70"
             style={{ top: yFor(s.start), height: heightFor(s.end - s.start) }}
             title={`Overloaded: ${Math.round((s.end - s.start) / 60)}h straight with no break`}
+          />
+        ))}
+
+        {/* Drop targets for dragging unscheduled tasks onto a time slot (30-min granularity) */}
+        {Array.from({ length: ((END_HOUR - START_HOUR) * 60) / 30 }, (_, i) => START_HOUR * 60 + i * 30).map((mins) => (
+          <TimelineDropSlot
+            key={`slot-${mins}`}
+            date={date}
+            minutes={mins}
+            top={yFor(mins)}
+            height={heightFor(30)}
           />
         ))}
 
