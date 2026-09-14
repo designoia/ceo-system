@@ -7,28 +7,61 @@ import { useStore } from '@/lib/store';
 import { getTodayDateString, formatMinutes } from '@/lib/utils';
 import { Task } from '@/lib/types';
 
-function TaskLine({ task, projectName, onOpen }: { task: Task; projectName?: string; onOpen: (t: Task) => void }) {
+function TaskLine({
+  task,
+  projectName,
+  onOpen,
+  onToggleDone,
+}: {
+  task: Task;
+  projectName?: string;
+  onOpen: (t: Task) => void;
+  onToggleDone: (t: Task) => void;
+}) {
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onOpen(task)}
-      className="w-full flex items-center gap-2.5 py-1.5 text-left hover:bg-secondary/50 -mx-2 px-2 rounded-md transition-colors group"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') onOpen(task);
+      }}
+      className="w-full flex items-center gap-2.5 py-1.5 text-left hover:bg-secondary/50 -mx-2 px-2 rounded-md transition-colors group cursor-pointer"
     >
-      {task.status === 'DONE' ? (
-        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-      ) : (
-        <Circle className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
-      )}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleDone(task);
+        }}
+        aria-label={task.status === 'DONE' ? 'Mark task not done' : 'Mark task done'}
+        className="shrink-0 -m-1 p-1 rounded-full hover:bg-secondary"
+      >
+        {task.status === 'DONE' ? (
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+        ) : (
+          <Circle className="h-3.5 w-3.5 text-muted-foreground/50" />
+        )}
+      </button>
       <span className={`text-[13px] truncate flex-1 ${task.status === 'DONE' ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
         {task.title}
       </span>
       {projectName && <span className="text-[10px] text-muted-foreground/70 shrink-0 hidden sm:inline">{projectName}</span>}
       <span className="text-[10px] font-mono text-muted-foreground shrink-0">{formatMinutes(task.estimatedMinutes)}</span>
-    </button>
+    </div>
   );
 }
 
 export function CommandCenter({ onOpenTask }: { onOpenTask: (t: Task) => void }) {
-  const { tasks, projects, scheduleEntries, todayCapacityMinutes, settings, getProjectProgress } = useStore();
+  const { tasks, projects, scheduleEntries, todayCapacityMinutes, settings, getProjectProgress, updateTaskStatus } = useStore();
+
+  const handleToggleDone = (task: Task) => {
+    if (task.status === 'DONE') {
+      updateTaskStatus(task.id, task.previousStatus || 'TODAY');
+    } else {
+      updateTaskStatus(task.id, 'DONE');
+    }
+  };
 
   const today = getTodayDateString(settings.timezone || 'Asia/Kolkata');
 
@@ -76,7 +109,7 @@ export function CommandCenter({ onOpenTask }: { onOpenTask: (t: Task) => void })
           ) : (
             <div className="divide-y divide-border/50">
               {todayTasks.map((t) => (
-                <TaskLine key={t.id} task={t} projectName={projectName(t.projectId)} onOpen={onOpenTask} />
+                <TaskLine key={t.id} task={t} projectName={projectName(t.projectId)} onOpen={onOpenTask} onToggleDone={handleToggleDone} />
               ))}
             </div>
           )}
@@ -90,7 +123,7 @@ export function CommandCenter({ onOpenTask }: { onOpenTask: (t: Task) => void })
             </div>
             <div className="divide-y divide-amber-500/10">
               {overdueTasks.map((t) => (
-                <TaskLine key={t.id} task={t} projectName={projectName(t.projectId)} onOpen={onOpenTask} />
+                <TaskLine key={t.id} task={t} projectName={projectName(t.projectId)} onOpen={onOpenTask} onToggleDone={handleToggleDone} />
               ))}
             </div>
           </div>
@@ -104,7 +137,7 @@ export function CommandCenter({ onOpenTask }: { onOpenTask: (t: Task) => void })
             </div>
             <div className="divide-y divide-border/50">
               {unscheduledTasks.map((t) => (
-                <TaskLine key={t.id} task={t} projectName={projectName(t.projectId)} onOpen={onOpenTask} />
+                <TaskLine key={t.id} task={t} projectName={projectName(t.projectId)} onOpen={onOpenTask} onToggleDone={handleToggleDone} />
               ))}
             </div>
           </div>
@@ -157,7 +190,7 @@ export function CommandCenter({ onOpenTask }: { onOpenTask: (t: Task) => void })
             </div>
             <div className="divide-y divide-border/50">
               {upcomingTasks.map((t) => (
-                <TaskLine key={t.id} task={t} projectName={projectName(t.projectId)} onOpen={onOpenTask} />
+                <TaskLine key={t.id} task={t} projectName={projectName(t.projectId)} onOpen={onOpenTask} onToggleDone={handleToggleDone} />
               ))}
             </div>
           </div>
