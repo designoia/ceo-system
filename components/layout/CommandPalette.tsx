@@ -3,13 +3,14 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus, FolderKanban, CheckCircle2, Circle, Calendar, ArrowRight, Lightbulb } from 'lucide-react';
+import { Search, Plus, FolderKanban, CheckCircle2, Circle, Calendar, ArrowRight, Lightbulb, Bot } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { TaskDrawer } from '@/components/tasks/TaskDrawer';
 import { Task, TaskStatus } from '@/lib/types';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { useCloseOnRouteChange } from '@/lib/hooks/useCloseOnRouteChange';
 import { DESIGNOIA_MOTION } from '@/lib/motion';
+import { INITIAL_AI_BOTS } from '@/lib/ai/bot-catalog';
 
 type PaletteItem = {
   id: string;
@@ -40,7 +41,7 @@ export function CommandPalette() {
   const [drawerTask, setDrawerTask] = useState<Task | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const close = () => setCommandPaletteOpen(false);
+  const close = React.useCallback(() => setCommandPaletteOpen(false), [setCommandPaletteOpen]);
 
   // Globally-mounted overlay — must not survive a route change, or its
   // backdrop (above the bottom nav's z-index) silently blocks the app.
@@ -113,6 +114,38 @@ export function CommandPalette() {
           router.push('/projects?new=1');
         },
       });
+      result.push({
+        id: 'open-ai-command-center',
+        label: 'Open AI Command Center',
+        hint: 'AI Business Team',
+        icon: <Bot className="h-4 w-4 text-primary" />,
+        action: () => {
+          close();
+          router.push('/ai');
+        },
+      });
+    }
+
+    const matchedBots = q
+      ? INITIAL_AI_BOTS.filter(
+          (b) =>
+            b.name.toLowerCase().includes(q) ||
+            b.category.toLowerCase().includes(q) ||
+            b.description.toLowerCase().includes(q)
+        ).slice(0, 4)
+      : [];
+
+    for (const b of matchedBots) {
+      result.push({
+        id: `bot-${b.slug}`,
+        label: b.name,
+        hint: `AI ${b.category}`,
+        icon: <Bot className="h-4 w-4 text-primary" />,
+        action: () => {
+          close();
+          router.push(`/ai/bots/${b.slug}`);
+        },
+      });
     }
 
     const matchedTasks = tasks
@@ -152,7 +185,7 @@ export function CommandPalette() {
     }
 
     return result;
-  }, [query, tasks, projects, addTask, router, setQuickAddOpen]);
+  }, [query, tasks, projects, addTask, router, setQuickAddOpen, close]);
 
   useEffect(() => {
     setSelectedIndex(0);

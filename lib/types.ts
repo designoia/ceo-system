@@ -551,3 +551,73 @@ export interface UserSettings {
   conflictResolutionStrategy: ConflictResolutionStrategy;
 }
 
+// ============================================================================
+// AI COMMAND CENTER & BOT TYPES
+// ============================================================================
+
+export type AIBotCategory =
+  | 'strategy'
+  | 'research'
+  | 'marketing'
+  | 'sales'
+  | 'operations'
+  | 'finance'
+  | 'automation';
+
+export type AIBotActionType =
+  | 'CREATE_GOAL'
+  | 'CREATE_PROJECT'
+  | 'CREATE_TASK'
+  | 'CREATE_SUBTASK'
+  | 'SCHEDULE_TASK'
+  | 'SAVE_DOCUMENT'
+  | 'SAVE_STRATEGY'
+  | 'SAVE_RESEARCH'
+  | 'CREATE_SOP'
+  | 'CREATE_CHECKLIST';
+
+export interface AIBot {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  icon: string;
+  category: AIBotCategory;
+  systemPrompt?: string; // Hidden in public payloads
+  welcomeMessage: string;
+  conversationStarters: string[];
+  modelProvider?: string; // 'openrouter' | 'openai' | 'anthropic' | 'gemini'
+  modelName?: string;
+  temperature?: number;
+  knowledgeBaseEnabled?: boolean;
+  webSearchEnabled?: boolean;
+  toolsEnabled?: string[];
+  outputActions?: AIBotActionType[];
+  capabilities?: string[];
+  exampleUseCases?: string[];
+  isActive?: boolean;
+  sortOrder?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  lastUsedAt?: string; // Client-computed / store-tracked
+  isFavorite?: boolean; // Client-computed / store-tracked
+}
+
+export interface AIBotFavorite {
+  id: string;
+  userId?: string;
+  botSlug: string;
+  createdAt: string;
+}
+
+export interface AIBotUsageLog {
+  id: string;
+  userId?: string;
+  botSlug: string;
+  model: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  estimatedCost?: number;
+  createdAt: string;
+}
+

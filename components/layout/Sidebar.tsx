@@ -12,7 +12,8 @@ import {
   Clock, 
   BarChart3, 
   Settings,
-  Sparkles
+  Sparkles,
+  Bot
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/lib/store';
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: '/tasks', label: 'Tasks', icon: CheckSquare },
   { href: '/schedule', label: 'Schedule', icon: Clock },
   { href: '/reviews', label: 'Reviews', icon: BarChart3 },
+  { href: '/ai', label: 'AI Command Center', icon: Bot },
 ];
 
 export function Sidebar() {
@@ -61,7 +63,7 @@ export function Sidebar() {
       {/* Main Navigation */}
       <nav className="flex-1 space-y-1 px-1">
         {NAV_ITEMS.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
           const Icon = item.icon;
           return (
             <Link

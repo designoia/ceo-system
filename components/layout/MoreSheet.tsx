@@ -3,10 +3,11 @@
 import React from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FolderKanban, Target, BarChart3, Settings, X } from 'lucide-react';
+import { FolderKanban, Target, BarChart3, Settings, X, Bot } from 'lucide-react';
 import { DESIGNOIA_MOTION } from '@/lib/motion';
 
 const MORE_ITEMS = [
+  { href: '/ai', label: 'AI Command Center', icon: Bot, desc: 'Specialized AI business assistants' },
   { href: '/projects', label: 'Projects', icon: FolderKanban, desc: 'Initiatives & progress' },
   { href: '/goals', label: 'Goals', icon: Target, desc: '5-year plan & roadmap' },
   { href: '/reviews', label: 'Reviews', icon: BarChart3, desc: 'Weekly & monthly review' },
