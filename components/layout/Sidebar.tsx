@@ -13,7 +13,8 @@ import {
   BarChart3, 
   Settings,
   Sparkles,
-  Bot
+  Bot,
+  LayoutGrid
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/lib/store';
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
   { href: '/tasks', label: 'Tasks', icon: CheckSquare },
   { href: '/schedule', label: 'Schedule', icon: Clock },
   { href: '/reviews', label: 'Reviews', icon: BarChart3 },
+  { href: '/tracker', label: 'Task Tracker', icon: LayoutGrid },
   { href: '/ai', label: 'AI Command Center', icon: Bot },
 ];
 
