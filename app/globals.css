@@ -129,3 +129,43 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ---------- Task Tracker (/tracker) — self-contained light/dark theme ---------- */
+.tk-light {
+  --tk-bg: 232 40% 96%;
+  --tk-card: 0 0% 100%;
+  --tk-fg: 230 30% 14%;
+  --tk-muted: 230 12% 44%;
+  --tk-line: 230 25% 90%;
+  --tk-soft: 230 35% 95%;
+  --tk-accent: 245 75% 58%;
+}
+.tk-dark {
+  --tk-bg: 228 40% 8%;
+  --tk-card: 228 30% 13%;
+  --tk-fg: 225 30% 94%;
+  --tk-muted: 226 14% 64%;
+  --tk-line: 228 25% 21%;
+  --tk-soft: 228 28% 17%;
+  --tk-accent: 245 90% 74%;
+}
+.tk-root { background: hsl(var(--tk-bg)); color: hsl(var(--tk-fg)); }
+.tk-card { background: hsl(var(--tk-card)); border: 1px solid hsl(var(--tk-line)); border-radius: 1rem; }
+.tk-soft { background: hsl(var(--tk-soft)); }
+.tk-line { border-color: hsl(var(--tk-line)); }
+.tk-muted { color: hsl(var(--tk-muted)); }
+.tk-accent-text { color: hsl(var(--tk-accent)); }
+.tk-accent-bg { background: hsl(var(--tk-accent)); color: #fff; }
+.tk-input {
+  background: hsl(var(--tk-soft));
+  border: 1px solid hsl(var(--tk-line));
+  color: hsl(var(--tk-fg));
+  border-radius: 0.75rem;
+  font-size: 16px; /* prevents iOS zoom-on-focus */
+  min-height: 44px;
+  padding: 0 0.75rem;
+  width: 100%;
+}
+.tk-input:focus { outline: 2px solid hsl(var(--tk-accent) / 0.6); outline-offset: 1px; }
+.tk-scroll-x { scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.tk-scroll-x::-webkit-scrollbar { display: none; }
