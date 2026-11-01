@@ -31,7 +31,7 @@ function Label({ children }: { children: React.ReactNode }) {
  * Everything else sits behind "More". Changes save as you make them.
  */
 export function TaskSheet({ taskId, onClose }: { taskId: string | null; onClose: () => void }) {
-  const { tasks, businesses, updateTask, rescheduleTask, softDeleteTask } = useStore();
+  const { tasks, businesses, projects, updateTask, rescheduleTask, softDeleteTask } = useStore();
   const today = useToday();
   const task = taskId ? tasks.find((t) => t.id === taskId) : undefined;
   const [title, setTitle] = useState('');
@@ -132,6 +132,17 @@ export function TaskSheet({ taskId, onClose }: { taskId: string | null; onClose:
                 </button>
                 {more && (
                   <div className="mt-2 space-y-5">
+                    {projects.some((p) => p.status === 'ACTIVE' || p.id === task.projectId) && (
+                      <div>
+                        <Label>Project</Label>
+                        <div className="flex flex-wrap gap-2">
+                          <Pill active={!task.projectId} color="#64748b" onClick={() => updateTask(task.id, { projectId: undefined })}>None</Pill>
+                          {projects.filter((p) => p.status === 'ACTIVE' || p.id === task.projectId).map((p) => (
+                            <Pill key={p.id} active={task.projectId === p.id} onClick={() => updateTask(task.id, { projectId: p.id })}>{p.name}</Pill>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div>
                       <Label>Priority</Label>
                       <div className="flex gap-2">

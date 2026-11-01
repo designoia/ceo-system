@@ -1,337 +1,188 @@
 'use client';
 
-import React, { useState } from 'react';
-import { 
-  Target, 
-  Calendar, 
-  Sparkles, 
-  CheckCircle2, 
-  Plus, 
-  ChevronRight,
-  TrendingUp,
-  Building,
-  GraduationCap,
-  Folder,
-  Package,
-  User
-} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Check, ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useStore } from '@/lib/store';
-import { BusinessCode, Goal, StrategicMonth } from '@/lib/types';
+import { useCalendarFilter } from '@/lib/hooks/useCalendarFilter';
+import { Goal } from '@/lib/types';
+import { NO_CAL_COLOR, topLevel } from '@/lib/work';
 import { PageTransition } from '@/components/motion/PageTransition';
+import { CalendarChips } from '@/components/work/CalendarChips';
+import { AddLine, EmptyCard, Label, Pill, ProgressBar, Sheet } from '@/components/work/ui';
+
+const THIS_YEAR = new Date().getFullYear();
 
 export default function GoalsPage() {
-  const { 
-    goals, 
-    months, 
-    businesses, 
-    addGoal, 
-    updateGoal, 
-    updateMonth 
-  } = useStore();
+  const { goals, projects, tasks, businesses, addGoal, updateGoal, deleteGoal } = useStore();
+  const [filter, setFilter] = useCalendarFilter();
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [showDone, setShowDone] = useState(false);
+  const [more, setMore] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'VISION' | 'ROADMAP'>('ROADMAP');
-  const [selectedBusiness, setSelectedBusiness] = useState<BusinessCode | 'ALL'>('ALL');
-  const [editingMonthId, setEditingMonthId] = useState<string | null>(null);
-  const [newGoalTitle, setNewGoalTitle] = useState('');
-  const [newGoalBiz, setNewGoalBiz] = useState<BusinessCode>('');
-  const [newGoalYear, setNewGoalYear] = useState(2028);
+  const color = (code: string) => businesses.find((b) => b.code === code)?.color ?? NO_CAL_COLOR;
 
-  const filteredGoals = selectedBusiness === 'ALL'
-    ? goals
-    : goals.filter((g) => g.businessCode === selectedBusiness);
+  // A goal's progress is the average progress of the projects linked to it.
+  const progressOf = useMemo(() => {
+    const projectPct = (projectId: string) => {
+      const list = topLevel(tasks).filter((t) => t.projectId === projectId);
+      return list.length ? Math.round((list.filter((t) => t.status === 'DONE').length / list.length) * 100) : 0;
+    };
+    return (goalId: string) => {
+      const linked = projects.filter((p) => p.relatedGoalId === goalId && !p.isArchived);
+      if (linked.length === 0) return null;
+      return Math.round(linked.reduce((a, p) => a + projectPct(p.id), 0) / linked.length);
+    };
+  }, [projects, tasks]);
 
-  const handleAddGoal = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newGoalTitle.trim()) return;
+  const visible = goals.filter((g) => filter === 'ALL' || g.businessCode === filter);
+  const open = visible.filter((g) => !g.isCompleted);
+  const done = visible.filter((g) => g.isCompleted);
+  const years = Array.from(new Set(open.map((g) => g.targetYear))).sort((a, b) => a - b);
+  const selected = goals.find((g) => g.id === openId);
+  const linked = selected ? projects.filter((p) => p.relatedGoalId === selected.id) : [];
 
+  const add = (title: string) =>
     addGoal({
-      businessCode: newGoalBiz,
-      title: newGoalTitle.trim(),
+      title,
+      businessCode: filter === 'ALL' ? '' : filter,
       category: 'system',
-      targetYear: newGoalYear,
+      targetYear: THIS_YEAR,
       isCompleted: false,
     });
 
-    setNewGoalTitle('');
-  };
-
-  const getBizIcon = (code: BusinessCode) => {
-    switch (code) {
-      case 'COL': return <GraduationCap className="h-4 w-4" />;
-      case 'DESIGNOIA': return <Sparkles className="h-4 w-4" />;
-      case 'CLIKIXPRESS': return <Package className="h-4 w-4" />;
-      case 'PERSONAL': return <User className="h-4 w-4" />;
-      default: return <Folder className="h-4 w-4" />;
-    }
+  const row = (g: Goal) => {
+    const pct = progressOf(g.id);
+    return (
+      <div key={g.id} className={cn('flex items-center gap-3 rounded-xl border border-border surface-1 px-3.5', g.isCompleted && 'opacity-60')}>
+        <button
+          role="checkbox"
+          aria-checked={g.isCompleted}
+          aria-label={g.isCompleted ? 'Mark as not achieved' : 'Mark as achieved'}
+          onClick={() => updateGoal(g.id, { isCompleted: !g.isCompleted })}
+          className="-m-2.5 flex h-11 w-11 shrink-0 items-center justify-center"
+        >
+          <span
+            className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-2"
+            style={{ borderColor: g.isCompleted ? '#10b981' : color(g.businessCode), background: g.isCompleted ? '#10b981' : 'transparent' }}
+          >
+            {g.isCompleted && <Check className="h-3.5 w-3.5 text-white" strokeWidth={3.5} />}
+          </span>
+        </button>
+        <button onClick={() => { setOpenId(g.id); setMore(false); }} className="min-w-0 flex-1 py-3 text-left">
+          <div className={cn('text-[15px] font-medium leading-snug', g.isCompleted && 'line-through')}>{g.title}</div>
+          <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+            {businesses.find((b) => b.code === g.businessCode) && (
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full" style={{ background: color(g.businessCode) }} />
+                {businesses.find((b) => b.code === g.businessCode)?.name}
+              </span>
+            )}
+            {pct !== null && <span>{pct}% done</span>}
+          </div>
+          {pct !== null && !g.isCompleted && <div className="mt-2"><ProgressBar value={pct} color={color(g.businessCode)} /></div>}
+        </button>
+      </div>
+    );
   };
 
   return (
-    <PageTransition className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-primary">
-            STRATEGIC ARCHITECTURE
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-            5-Year Vision & Roadmap
-          </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            The long-term master plan that quietly steers your daily actions.
-          </p>
-        </div>
-
-        {/* View Toggle */}
-        <div className="flex items-center rounded-xl border border-border bg-card p-1">
-          <button
-            onClick={() => setActiveTab('ROADMAP')}
-            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-              activeTab === 'ROADMAP'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Calendar className="h-3.5 w-3.5" />
-            <span>60-Month Roadmap</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('VISION')}
-            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-              activeTab === 'VISION'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Target className="h-3.5 w-3.5" />
-            <span>5-Year Goals</span>
-          </button>
-        </div>
+    <PageTransition className="space-y-4">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Goals</h1>
+        <p className="text-sm text-muted-foreground">{open.length === 0 ? 'What are you working towards?' : `${open.length} to achieve`}</p>
       </div>
 
-      {/* 60-MONTH ROADMAP VIEW */}
-      {activeTab === 'ROADMAP' && (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-border bg-card/60 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-foreground">Strategic Monthly Sequence (2026 – 2031)</h3>
-                <p className="text-xs text-muted-foreground">
-                  Each month provides clarity of focus so you only conquer one major theme at a time.
-                </p>
-              </div>
-            </div>
-          </div>
+      <CalendarChips value={filter} onChange={setFilter} />
+      <AddLine placeholder="Add a goal — press Enter" onAdd={add} />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {months.map((m: StrategicMonth) => (
-              <div
-                key={m.id}
-                className={`relative flex flex-col justify-between rounded-2xl border p-5 transition-all ${
-                  m.isCurrent
-                    ? 'border-primary bg-primary/5 shadow-md ring-1 ring-primary/30'
-                    : 'border-border bg-card/60 hover:border-border/90 hover:bg-card'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between pb-2">
-                    <span className="font-mono text-xs font-bold text-primary">
-                      {m.yearMonth}
-                    </span>
-                    {m.isCurrent && (
-                      <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary">
-                        CURRENT FOCUS
-                      </span>
-                    )}
-                  </div>
+      {goals.length === 0 && <EmptyCard title="Write your first goal." hint="One line is enough. Set the year, link projects and add details later." />}
 
-                  <h4 className="text-sm font-bold text-foreground mt-1">
-                    {m.focusTitle}
-                  </h4>
+      {years.map((y) => (
+        <section key={y}>
+          <h2 className="mb-2 px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">{y === THIS_YEAR ? `${y} · this year` : y}</h2>
+          <div className="space-y-2">{open.filter((g) => g.targetYear === y).map(row)}</div>
+        </section>
+      ))}
 
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {m.targetOutcome}
-                  </p>
-
-                  {m.kpis && m.kpis.length > 0 && (
-                    <div className="mt-3 space-y-1">
-                      <div className="text-[10px] font-semibold text-muted-foreground uppercase">
-                        Key Deliverables:
-                      </div>
-                      <ul className="space-y-1">
-                        {m.kpis.map((kpi, idx) => (
-                          <li
-                            key={idx}
-                            className="flex items-start gap-1.5 text-[11px] text-foreground/80"
-                          >
-                            <span className="text-primary mt-0.5">•</span>
-                            <span>{kpi}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-
-                {m.definitionOfDone && (
-                  <div className="mt-4 pt-3 border-t border-border/60 text-[11px] text-muted-foreground">
-                    <span className="font-semibold text-foreground">Done When:</span> {m.definitionOfDone}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+      {done.length > 0 && (
+        <section>
+          <button onClick={() => setShowDone((v) => !v)} className="mb-2 flex min-h-[40px] items-center gap-2 px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+            Achieved · {done.length}
+            <span className="font-medium normal-case tracking-normal">{showDone ? 'Hide' : 'Show'}</span>
+          </button>
+          {showDone && <div className="space-y-2">{done.map(row)}</div>}
+        </section>
       )}
 
-      {/* 5-YEAR GOALS VIEW */}
-      {activeTab === 'VISION' && (
-        <div className="space-y-6">
-          {/* Filter Pills */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setSelectedBusiness('ALL')}
-              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                selectedBusiness === 'ALL'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'border border-border bg-card text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              All Focus Areas
-            </button>
-
-            {businesses.map((biz) => (
-              <button
-                key={biz.code}
-                onClick={() => setSelectedBusiness(biz.code)}
-                className={`flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                  selectedBusiness === biz.code
-                    ? 'bg-primary text-primary-foreground'
-                    : 'border border-border bg-card text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {getBizIcon(biz.code)}
-                <span>{biz.name}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Goals Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredGoals.map((goal: Goal) => {
-              const biz = businesses.find((b) => b.code === goal.businessCode);
-              return (
-                <div
-                  key={goal.id}
-                  className="rounded-2xl border border-border bg-card/60 p-5 space-y-3 hover:border-border/90 transition-all"
-                >
-                  <div className="flex items-center justify-between">
-                    <span
-                      className="rounded-md px-2 py-0.5 text-[10px] font-bold"
-                      style={{
-                        backgroundColor: `${biz?.color || '#3b82f6'}18`,
-                        color: biz?.color || '#3b82f6',
-                      }}
-                    >
-                      {goal.businessCode}
-                    </span>
-
-                    <span className="font-mono text-xs font-bold text-muted-foreground">
-                      Target: {goal.targetYear}
-                    </span>
-                  </div>
-
-                  <h4 className="text-sm font-bold text-foreground">
-                    {goal.title}
-                  </h4>
-
-                  {goal.targetMetric && (
-                    <div className="rounded-xl bg-background/60 p-2.5 text-xs space-y-1">
-                      <div className="flex items-center justify-between text-muted-foreground">
-                        <span>Target Metric:</span>
-                        <span className="font-semibold text-foreground">{goal.targetMetric}</span>
-                      </div>
-                      {goal.currentMetric && (
-                        <div className="flex items-center justify-between text-muted-foreground">
-                          <span>Current Status:</span>
-                          <span className="text-primary font-medium">{goal.currentMetric}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between pt-1">
-                    <button
-                      onClick={() => updateGoal(goal.id, { isCompleted: !goal.isCompleted })}
-                      className={`flex items-center gap-1.5 text-xs font-semibold ${
-                        goal.isCompleted
-                          ? 'text-emerald-500'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      <CheckCircle2 className="h-4 w-4" />
-                      <span>{goal.isCompleted ? 'Goal Achieved' : 'In Progress'}</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Quick Add Goal */}
-          <form
-            onSubmit={handleAddGoal}
-            className="rounded-2xl border border-dashed border-border bg-card/40 p-5 space-y-3"
-          >
-            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Add New Long-Term Goal
-            </h4>
-
-            <div className="flex flex-col sm:flex-row items-center gap-2">
-              <input
-                type="text"
-                value={newGoalTitle}
-                onChange={(e) => setNewGoalTitle(e.target.value)}
-                placeholder="Goal title (e.g. Expand to 5 centers or Purchase Car)"
-                className="flex-1 w-full rounded-xl border border-border bg-background px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
-              />
-
-              <select
-                value={newGoalBiz}
-                onChange={(e) => setNewGoalBiz(e.target.value as BusinessCode)}
-                className="w-full sm:w-auto rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-none"
-              >
+      <Sheet
+        open={!!selected}
+        onClose={() => setOpenId(null)}
+        title={selected?.title ?? ''}
+        onTitleChange={(t) => selected && updateGoal(selected.id, { title: t })}
+        onDelete={selected ? () => { deleteGoal(selected.id); setOpenId(null); } : undefined}
+      >
+        {selected && (
+          <>
+            <div>
+              <Label>Target year</Label>
+              <div className="flex flex-wrap gap-2">
+                {Array.from({ length: 6 }, (_, i) => THIS_YEAR + i).map((y) => (
+                  <Pill key={y} active={selected.targetYear === y} onClick={() => updateGoal(selected.id, { targetYear: y })}>{y}</Pill>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label>Calendar</Label>
+              <div className="flex flex-wrap gap-2">
+                <Pill active={!selected.businessCode} color="#64748b" onClick={() => updateGoal(selected.id, { businessCode: '' })}>None</Pill>
                 {businesses.map((b) => (
-                  <option key={b.code} value={b.code}>
-                    {b.name}
-                  </option>
+                  <Pill key={b.code} active={selected.businessCode === b.code} color={b.color} onClick={() => updateGoal(selected.id, { businessCode: b.code })}>{b.name}</Pill>
                 ))}
-              </select>
-
-              <select
-                value={newGoalYear}
-                onChange={(e) => setNewGoalYear(Number(e.target.value))}
-                className="w-full sm:w-auto rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-none font-mono"
-              >
-                {[2026, 2027, 2028, 2029, 2030, 2031].map((yr) => (
-                  <option key={yr} value={yr}>
-                    {yr}
-                  </option>
-                ))}
-              </select>
-
-              <button
-                type="submit"
-                disabled={!newGoalTitle.trim()}
-                className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-sm"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Add Goal</span>
-              </button>
+              </div>
             </div>
-          </form>
-        </div>
-      )}
+            <div>
+              <Label>Projects towards this goal</Label>
+              {linked.length === 0 ? (
+                <p className="text-sm text-muted-foreground">None yet. Link a project to this goal from the Projects screen.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {linked.map((p) => (
+                    <li key={p.id} className="flex items-center justify-between rounded-lg bg-secondary/60 px-3 py-2.5 text-sm">
+                      <span className="font-medium">{p.name}</span>
+                      <span className="text-xs text-muted-foreground">{p.status === 'ACTIVE' ? 'Active' : p.status === 'PAUSED' ? 'Paused' : 'Done'}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <button onClick={() => setMore((v) => !v)} className="flex min-h-[40px] items-center gap-1.5 text-[13px] font-semibold text-muted-foreground">
+                <ChevronDown className={cn('h-4 w-4 transition-transform', more && 'rotate-180')} />
+                More options
+              </button>
+              {more && (
+                <div className="mt-2 space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Now</Label>
+                      <input defaultValue={selected.currentMetric ?? ''} onBlur={(e) => updateGoal(selected.id, { currentMetric: e.target.value.trim() || undefined })} placeholder="e.g. 10 clients" className="min-h-[44px] w-full rounded-lg border border-border bg-transparent px-3 text-base outline-none focus:border-primary" />
+                    </div>
+                    <div>
+                      <Label>Target</Label>
+                      <input defaultValue={selected.targetMetric ?? ''} onBlur={(e) => updateGoal(selected.id, { targetMetric: e.target.value.trim() || undefined })} placeholder="e.g. 50 clients" className="min-h-[44px] w-full rounded-lg border border-border bg-transparent px-3 text-base outline-none focus:border-primary" />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Notes</Label>
+                    <textarea defaultValue={selected.notes ?? ''} onBlur={(e) => updateGoal(selected.id, { notes: e.target.value.trim() || undefined })} className="min-h-[80px] w-full rounded-xl border border-border bg-transparent p-3 text-base outline-none focus:border-primary" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </Sheet>
     </PageTransition>
   );
 }
