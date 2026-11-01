@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, parseISO, startOfMonth, startOfWeek } from 'date-fns';
 import { ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -8,18 +8,45 @@ import { useStore } from '@/lib/store';
 import { Task } from '@/lib/types';
 import { taskDay } from '@/lib/work';
 import { DndArea, Draggable, DropZone } from './dnd';
+import { Sheet } from './ui';
 import { CheckBox, QuickAddBar, TaskRow, useCalendarColor, useToday, useToggleTask } from './TaskParts';
 
 const ymd = (d: Date) => format(d, 'yyyy-MM-dd');
 
+/** True once the viewport is at least `px` wide (false on first render so SSR and phones match). */
+function useMinWidth(px: number) {
+  const [ok, setOk] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${px}px)`);
+    const on = () => setOk(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, [px]);
+  return ok;
+}
+
 export function MonthView({ tasks, filter, onOpen }: { tasks: Task[]; filter: string; onOpen: (id: string) => void }) {
-  const { rescheduleTask } = useStore();
+  const { rescheduleTask, setQuickAddDate } = useStore();
   const today = useToday();
   const color = useCalendarColor();
   const toggle = useToggleTask();
   const [cursor, setCursor] = useState(() => startOfMonth(new Date()));
   const [selected, setSelected] = useState(today);
   const [hideDone, setHideDone] = useState(false);
+  const wide = useMinWidth(1024);
+  const [dayOpen, setDayOpen] = useState(false);
+
+  // The global + button adds to the day you're looking at.
+  useEffect(() => {
+    setQuickAddDate(selected === today ? null : selected);
+    return () => setQuickAddDate(null);
+  }, [selected, today, setQuickAddDate]);
+
+  const pickDay = (key: string) => {
+    setSelected(key);
+    if (!wide) setDayOpen(true);
+  };
 
   const days = useMemo(
     () => eachDayOfInterval({ start: startOfWeek(cursor, { weekStartsOn: 1 }), end: endOfWeek(endOfMonth(cursor), { weekStartsOn: 1 }) }),
@@ -47,6 +74,47 @@ export function MonthView({ tasks, filter, onOpen }: { tasks: Task[]; filter: st
     }
   };
 
+  const dayTitle = selected === today ? 'Today' : format(parseISO(selected), 'EEEE d MMMM');
+  const unscheduledList = unscheduled.length > 0 && (
+    <section>
+      <h3 className="mb-1 px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Unscheduled · {unscheduled.length}</h3>
+      <p className="mb-2 px-1 text-xs text-muted-foreground">{wide ? 'Drag onto a day to plan it.' : 'Open a task to give it a day.'}</p>
+      <div className="space-y-2">
+        {unscheduled.map((t) => (
+          wide ? (
+            <Draggable key={t.id} id={t.id}>
+              <TaskRow task={t} onOpen={(x) => onOpen(x.id)} compact />
+            </Draggable>
+          ) : (
+            <TaskRow key={t.id} task={t} onOpen={(x) => onOpen(x.id)} compact />
+          )
+        ))}
+      </div>
+    </section>
+  );
+
+  /** Everything about the picked day: its tasks (tick, edit, drag out) and a one-line add. */
+  const dayPanel = (
+    <div className="space-y-3">
+      <h3 className="px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+        {wide ? `${dayTitle} · ${selectedTasks.length}` : `${selectedTasks.length} task${selectedTasks.length === 1 ? '' : 's'}`}
+      </h3>
+      <div className="space-y-2">
+        {selectedTasks.length === 0 && <p className="px-1 py-2 text-sm text-muted-foreground">Nothing on this day yet.</p>}
+        {selectedTasks.map((t) =>
+          wide ? (
+            <Draggable key={t.id} id={t.id}>
+              <TaskRow task={t} onOpen={(x) => onOpen(x.id)} expandable />
+            </Draggable>
+          ) : (
+            <TaskRow key={t.id} task={t} onOpen={(x) => onOpen(x.id)} expandable />
+          )
+        )}
+        <QuickAddBar date={selected} businessCode={filter === 'ALL' ? '' : filter} placeholder={`Add to ${format(parseISO(selected), 'd MMM')}…`} />
+      </div>
+    </div>
+  );
+
   return (
     <DndArea
       onDrop={onDrop}
@@ -55,7 +123,8 @@ export function MonthView({ tasks, filter, onOpen }: { tasks: Task[]; filter: st
         return t ? <div className="max-w-[220px] truncate rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium">{t.title}</div> : null;
       }}
     >
-      <div className="space-y-4">
+      <div className="space-y-4 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-5 lg:space-y-0">
+        <div className="space-y-4">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center">
             <button aria-label="Previous month" onClick={() => setCursor(addMonths(cursor, -1))} className="flex h-11 w-11 items-center justify-center rounded-full">
@@ -110,8 +179,8 @@ export function MonthView({ tasks, filter, onOpen }: { tasks: Task[]; filter: st
                   id={`day:${key}`}
                   role="button"
                   tabIndex={0}
-                  onClick={() => setSelected(key)}
-                  onKeyDown={(e) => e.key === 'Enter' && setSelected(key)}
+                  onClick={() => pickDay(key)}
+                  onKeyDown={(e) => e.key === 'Enter' && pickDay(key)}
                   aria-label={format(d, 'EEEE d MMMM')}
                   className={cn('min-h-[64px] cursor-pointer border-b border-r border-border p-1 sm:min-h-[112px] sm:p-1.5', !inMonth && 'opacity-45', isSel && 'bg-primary/10')}
                   overClassName="!bg-primary/25 ring-2 ring-inset ring-primary"
@@ -148,33 +217,19 @@ export function MonthView({ tasks, filter, onOpen }: { tasks: Task[]; filter: st
           </div>
         </div>
 
-        {/* The day you tapped: tick off, drag out, or add */}
-        <section>
-          <h3 className="mb-2 px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
-            {selected === today ? 'Today' : format(parseISO(selected), 'EEEE d MMMM')} · {selectedTasks.length}
-          </h3>
-          <div className="space-y-2">
-            {selectedTasks.map((t) => (
-              <Draggable key={t.id} id={t.id}>
-                <TaskRow task={t} onOpen={(x) => onOpen(x.id)} expandable />
-              </Draggable>
-            ))}
-            <QuickAddBar date={selected} businessCode={filter === 'ALL' ? '' : filter} placeholder={`Add to ${format(parseISO(selected), 'd MMM')}…`} />
-          </div>
-        </section>
 
-        {unscheduled.length > 0 && (
-          <section>
-            <h3 className="mb-1 px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Unscheduled · {unscheduled.length}</h3>
-            <p className="mb-2 px-1 text-xs text-muted-foreground">Drag onto a day above to plan it.</p>
-            <div className="space-y-2">
-              {unscheduled.map((t) => (
-                <Draggable key={t.id} id={t.id}>
-                  <TaskRow task={t} onOpen={(x) => onOpen(x.id)} compact />
-                </Draggable>
-              ))}
-            </div>
-          </section>
+          {!wide && unscheduledList}
+        </div>
+
+        {wide ? (
+          <aside className="space-y-5 lg:sticky lg:top-20">
+            <div className="surface-1 rounded-xl border border-border p-4">{dayPanel}</div>
+            {unscheduledList}
+          </aside>
+        ) : (
+          <Sheet open={dayOpen} onClose={() => setDayOpen(false)} title={dayTitle}>
+            {dayPanel}
+          </Sheet>
         )}
       </div>
     </DndArea>

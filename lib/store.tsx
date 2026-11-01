@@ -181,6 +181,9 @@ interface StoreContextType {
 
   // Actions
   setQuickAddOpen: (open: boolean) => void;
+  /** Day the quick-add button adds to (set by the Calendar when you pick a day). null = today. */
+  quickAddDate: string | null;
+  setQuickAddDate: (date: string | null) => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setOverdueReviewOpen: (open: boolean) => void;
   startFocus: (task: Task, mode?: 'NORMAL' | 'RESCUE_10MIN') => void;
@@ -366,6 +369,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [activeFocusTask, setActiveFocusTask] = useState<Task | null>(null);
   const [focusMode, setFocusMode] = useState<'NORMAL' | 'RESCUE_10MIN' | null>(null);
   const [isQuickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddDate, setQuickAddDate] = useState<string | null>(null);
   const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [isOverdueReviewOpen, setOverdueReviewOpen] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -2518,6 +2522,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Standard Actions
     setQuickAddOpen,
+    quickAddDate,
+    setQuickAddDate,
     setCommandPaletteOpen,
     setOverdueReviewOpen,
     startFocus,

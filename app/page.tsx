@@ -5,7 +5,7 @@ import { Moon, Sparkles } from 'lucide-react';
 import { getGreeting, getFormattedDate } from '@/lib/utils';
 import { CommandCenter } from '@/components/dashboard/CommandCenter';
 import { MobileCeoHome } from '@/components/dashboard/MobileCeoHome';
-import { TaskDrawer } from '@/components/tasks/TaskDrawer';
+import { TaskSheet } from '@/components/work/TaskSheet';
 import { OverdueBanner } from '@/components/dashboard/OverdueBanner';
 import { OverdueReviewModal } from '@/components/dashboard/OverdueReviewModal';
 import { MustWinCarryForwardModal } from '@/components/dashboard/MustWinCarryForwardModal';
@@ -20,7 +20,7 @@ import { useStore } from '@/lib/store';
 import { Task } from '@/lib/types';
 
 export default function HomePage() {
-  const { settings, setMorningPlanOpen, setPlanTomorrowOpen, setScheduleReviewOpen, openScheduleModal } = useStore();
+  const { settings, setMorningPlanOpen, setPlanTomorrowOpen, setScheduleReviewOpen } = useStore();
   const [isEveningCheckinOpen, setIsEveningCheckinOpen] = useState(false);
   const [openTask, setOpenTask] = useState<Task | null>(null);
 
@@ -73,11 +73,7 @@ export default function HomePage() {
         <MobileCeoHome onOpenTask={(t) => setOpenTask(t)} />
       </div>
 
-      <TaskDrawer
-        task={openTask}
-        onClose={() => setOpenTask(null)}
-        onSchedule={(t) => openScheduleModal(t)}
-      />
+      <TaskSheet taskId={openTask?.id ?? null} onClose={() => setOpenTask(null)} />
 
       {/* Planning & Execution Modals */}
       <TodayIsDifferentModal />
