@@ -2,9 +2,10 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Target, AlertCircle, Clock, Inbox, Layers, ArrowUpRight, CheckCircle2, Circle } from 'lucide-react';
+import { Clock, Layers, ArrowUpRight, CheckCircle2, Circle } from 'lucide-react';
 import { useStore } from '@/lib/store';
-import { getTodayDateString, formatMinutes } from '@/lib/utils';
+import { getTodayDateString } from '@/lib/utils';
+import { TodayTable } from '@/components/work/TodayTable';
 import { Task } from '@/lib/types';
 
 function TaskLine({
@@ -47,13 +48,12 @@ function TaskLine({
         {task.title}
       </span>
       {projectName && <span className="text-[10px] text-muted-foreground/70 shrink-0 hidden sm:inline">{projectName}</span>}
-      <span className="text-[10px] font-mono text-muted-foreground shrink-0">{formatMinutes(task.estimatedMinutes)}</span>
     </div>
   );
 }
 
 export function CommandCenter({ onOpenTask }: { onOpenTask: (t: Task) => void }) {
-  const { tasks, projects, scheduleEntries, todayCapacityMinutes, settings, getProjectProgress, updateTaskStatus } = useStore();
+  const { tasks, projects, scheduleEntries, settings, getProjectProgress, updateTaskStatus } = useStore();
 
   const handleToggleDone = (task: Task) => {
     if (task.status === 'DONE') {
@@ -66,82 +66,19 @@ export function CommandCenter({ onOpenTask }: { onOpenTask: (t: Task) => void })
   const today = getTodayDateString(settings.timezone || 'Asia/Kolkata');
 
   const active = tasks.filter((t) => !t.isDeleted && !t.parentTaskId);
-  const todayTasks = active.filter((t) => t.status === 'TODAY');
-  const overdueTasks = active.filter((t) => t.status === 'OVERDUE');
   const upcomingTasks = active.filter((t) => t.status === 'NEXT' || t.status === 'THIS_WEEK').slice(0, 6);
-  const unscheduledTasks = active.filter(
-    (t) => (t.status === 'TODAY' || t.status === 'INBOX') && !t.scheduledDate
-  );
   const todaysSchedule = scheduleEntries.filter((e) => e.date === today && e.status !== 'CANCELLED');
 
-  const workloadMinutes = todayTasks.reduce((sum, t) => sum + (t.estimatedMinutes || 45), 0);
-  const overCapacity = workloadMinutes > todayCapacityMinutes;
 
-  const mustWin = todayTasks.find((t) => t.isMustWin);
-  const focusProject = mustWin?.projectId
-    ? projects.find((p) => p.id === mustWin.projectId)
-    : projects.find((p) => p.status === 'ACTIVE');
+  const focusProject = projects.find((p) => p.status === 'ACTIVE');
 
   const projectName = (id?: string) => (id ? projects.find((p) => p.id === id)?.name : undefined);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      {/* Left: Today + Overdue + Unscheduled */}
-      <div className="lg:col-span-2 space-y-4">
-        <div className="rounded-lg border border-border surface-1 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              <Target className="h-3.5 w-3.5" />
-              <span>Today ({todayTasks.length})</span>
-            </div>
-            <span className={`text-[11px] font-mono ${overCapacity ? 'text-amber-500' : 'text-muted-foreground'}`}>
-              {formatMinutes(workloadMinutes)} / {formatMinutes(todayCapacityMinutes)}
-            </span>
-          </div>
-          <div className="h-1 w-full rounded-full bg-secondary overflow-hidden mb-3">
-            <div
-              className={`h-full rounded-full transition-all duration-300 ${overCapacity ? 'bg-amber-500' : 'bg-primary'}`}
-              style={{ width: `${Math.min(100, (workloadMinutes / Math.max(1, todayCapacityMinutes)) * 100)}%` }}
-            />
-          </div>
-          {todayTasks.length === 0 ? (
-            <p className="text-[12px] text-muted-foreground py-2">Nothing planned for today yet.</p>
-          ) : (
-            <div className="divide-y divide-border/50">
-              {todayTasks.map((t) => (
-                <TaskLine key={t.id} task={t} projectName={projectName(t.projectId)} onOpen={onOpenTask} onToggleDone={handleToggleDone} />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {overdueTasks.length > 0 && (
-          <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.04] p-4">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-500 mb-2">
-              <AlertCircle className="h-3.5 w-3.5" />
-              <span>Overdue ({overdueTasks.length})</span>
-            </div>
-            <div className="divide-y divide-amber-500/10">
-              {overdueTasks.map((t) => (
-                <TaskLine key={t.id} task={t} projectName={projectName(t.projectId)} onOpen={onOpenTask} onToggleDone={handleToggleDone} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {unscheduledTasks.length > 0 && (
-          <div className="rounded-lg border border-border surface-1 p-4">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-              <Inbox className="h-3.5 w-3.5" />
-              <span>Unscheduled ({unscheduledTasks.length})</span>
-            </div>
-            <div className="divide-y divide-border/50">
-              {unscheduledTasks.map((t) => (
-                <TaskLine key={t.id} task={t} projectName={projectName(t.projectId)} onOpen={onOpenTask} onToggleDone={handleToggleDone} />
-              ))}
-            </div>
-          </div>
-        )}
+      {/* Left: Today table */}
+      <div className="lg:col-span-2">
+        <TodayTable onOpenTask={onOpenTask} />
       </div>
 
       {/* Right: Focus project, scheduled, upcoming */}
