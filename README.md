@@ -36,25 +36,35 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 🌐 Supabase & Cloud Deployment (₹0/Month)
+## 🔄 Sync across your phone and laptop (free, ~10 minutes)
 
-### Step 1: Create Supabase Project
-1. Go to [supabase.com](https://supabase.com) and create a free project.
-2. Open the **SQL Editor** in your Supabase dashboard.
-3. Copy the entire contents of [`supabase/schema.sql`](file:///c:/Users/Mohit/Downloads/CEO-SYSTEM/supabase/schema.sql) and click **Run**.
+CEO OS works fully offline on each device. To share the same tasks, goals, projects, calendars and schedule between devices, turn on sync once:
 
-### Step 2: Configure Environment Variables
-Copy `.env.example` to `.env.local`:
-```bash
-NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
-```
+1. **Create a free project** at [supabase.com](https://supabase.com).
+2. **Create the sync table.** In Supabase open **SQL Editor**, paste the contents of [`supabase/migrations/20261101_user_sync.sql`](supabase/migrations/20261101_user_sync.sql) and press **Run**. (Every user can only ever see their own rows.)
+3. **Let yourself sign up without email confirmation** (easiest for one person): **Authentication → Providers → Email → turn OFF “Confirm email”**.
+4. **Copy your keys:** **Project Settings → API** → copy the *Project URL* and the *anon public* key.
+5. **Add them to Vercel:** your project → **Settings → Environment Variables**:
+   - `NEXT_PUBLIC_SUPABASE_URL` = the Project URL
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = the anon public key
 
-### Step 3: Deploy to Vercel
+   Then **redeploy** (Deployments → ⋯ → Redeploy). For local use, put the same two lines in `.env.local`.
+6. **Sign in on each device:** open **Settings → Sync across devices**, create an account (first device) and sign in with the same email and password on the others.
+
+How it behaves:
+- Each task/goal/project/calendar/block syncs on its own; if the same item is edited on two devices, the **latest edit wins**.
+- Anything already on a device when you first sign in is kept and merged with the cloud copy.
+- Changes appear on the other device within a few seconds (or when you switch back to the app). Offline edits sync when you reconnect.
+- **Safety net:** if a device suddenly looks almost empty (for example you cleared browser data), sync pauses and asks whether to *Restore from cloud* instead of deleting everything everywhere. “Clean Start” in Settings is treated as intentional and deletes on all devices.
+- Not synced (stay per-device): app settings, activity history, Google integration state.
+
+---
+
+## 🚀 Deploy to Vercel
+
 1. Push your repository to GitHub.
-2. Go to [vercel.com](https://vercel.com) and import your GitHub repository.
-3. Under **Environment Variables**, add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-4. Click **Deploy**.
+2. Import it at [vercel.com](https://vercel.com).
+3. Add the two `NEXT_PUBLIC_SUPABASE_*` variables above if you want sync, then **Deploy**.
 
 ---
 
