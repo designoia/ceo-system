@@ -1,437 +1,279 @@
 'use client';
 
-import React, { useState } from 'react';
-import {
-  Clock,
-  Plus,
-  Sparkles,
-  ChevronLeft,
-  ChevronRight,
-  Moon,
-  BarChart3,
-  Wand2,
-} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { addDays, format, parseISO } from 'date-fns';
+import { Check, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { cn, calculateMinutesBetween, formatMinutes, formatMinutesToTime, formatTime12Hour, getCurrentTimeString, parseTimeToMinutes } from '@/lib/utils';
 import { useStore } from '@/lib/store';
-import { ScheduleEntry, ScheduleActivityType } from '@/lib/types';
+import { useCalendarFilter } from '@/lib/hooks/useCalendarFilter';
+import { ScheduleEntry } from '@/lib/types';
+import { NO_CAL_COLOR, topLevel } from '@/lib/work';
 import { PageTransition } from '@/components/motion/PageTransition';
-import { ExecutiveTimeline, TIMELINE_SLOT_DROP_PREFIX } from '@/components/schedule/ExecutiveTimeline';
-import { computeAutoSchedule } from '@/lib/scheduling';
-import { ScheduleMobileCards } from '@/components/schedule/ScheduleMobileCards';
-import { PlanTomorrowModal } from '@/components/schedule/PlanTomorrowModal';
-import { ScheduleBlockModal } from '@/components/schedule/ScheduleBlockModal';
-import { ScheduleReviewModal } from '@/components/schedule/ScheduleReviewModal';
-import { RescheduleModal } from '@/components/schedule/RescheduleModal';
-import { ScheduleAnalyticsCard } from '@/components/schedule/ScheduleAnalyticsCard';
-import { TodayIsDifferentModal } from '@/components/dashboard/TodayIsDifferentModal';
-import { getTodayDateString } from '@/lib/utils';
-import { ScheduleWeekView, WEEK_DAY_DROP_PREFIX } from '@/components/schedule/ScheduleWeekView';
-import { ScheduleMonthView } from '@/components/schedule/ScheduleMonthView';
-import { ScheduleYearView } from '@/components/schedule/ScheduleYearView';
-import { addDays } from '@/lib/scheduling';
-import { UnscheduledTasksPanel, UNSCHEDULED_DRAG_PREFIX } from '@/components/schedule/UnscheduledTasksPanel';
-import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { CalendarChips } from '@/components/work/CalendarChips';
+import { useToday } from '@/components/work/TaskParts';
+import { EmptyCard, Label, Pill, Sheet } from '@/components/work/ui';
 
-type ScheduleViewTab = 'DAY' | 'WEEK' | 'MONTH' | 'YEAR';
+const DURATIONS = [15, 30, 45, 60, 90, 120];
 
-function minutesToTimeStr(mins: number): string {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+const ymd = (d: Date) => format(d, 'yyyy-MM-dd');
+const roundUp15 = (mins: number) => Math.ceil(mins / 15) * 15;
+
+interface Draft {
+  id: string | null;
+  title: string;
+  start: string;
+  duration: number;
+  businessCode: string;
+  taskId?: string;
 }
 
 export default function SchedulePage() {
-  const {
-    selectedScheduleDate,
-    setSelectedScheduleDate,
-    scheduleEntries,
-    tasks,
-    todayCapacityMinutes,
-    settings,
-    mustWinTask,
-    scheduleFilterActivity,
-    setScheduleFilterActivity,
-    setAddBlockModalOpen,
-    setPlanTomorrowOpen,
-    setScheduleReviewOpen,
-    setTodayDifferentModalOpen,
-    scheduleTaskOnCalendar,
-  } = useStore();
+  const { scheduleEntries, tasks, businesses, settings, selectedScheduleDate, setSelectedScheduleDate, addScheduleEntry, updateScheduleEntry, deleteScheduleEntry, scheduleTaskOnCalendar, completeTask, undoTaskCompletion } = useStore();
+  const [filter, setFilter] = useCalendarFilter();
+  const today = useToday();
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const date = selectedScheduleDate;
+  const isToday = date === today;
+  const color = (code?: string) => businesses.find((b) => b.code === code)?.color ?? NO_CAL_COLOR;
 
-  const [rescheduleTargetEntry, setRescheduleTargetEntry] = useState<ScheduleEntry | null>(null);
-  const [showAnalytics, setShowAnalytics] = useState(false);
-  const [autoScheduleMsg, setAutoScheduleMsg] = useState<string | null>(null);
-  const [viewTab, setViewTab] = useState<ScheduleViewTab>('DAY');
-  const [yearAnchor, setYearAnchor] = useState<number>(new Date().getFullYear());
+  const entries = useMemo(
+    () =>
+      scheduleEntries
+        .filter((e) => e.date === date && e.status !== 'CANCELLED' && e.status !== 'RESCHEDULED' && (filter === 'ALL' || e.businessCode === filter))
+        .sort((a, b) => a.plannedStartTime.localeCompare(b.plannedStartTime)),
+    [scheduleEntries, date, filter]
+  );
 
-  const todayStr = getTodayDateString(settings.timezone || 'Asia/Kolkata');
-  const isToday = selectedScheduleDate === todayStr;
+  const planned = entries.reduce((a, e) => a + e.plannedDurationMinutes, 0);
+  const finished = entries.filter((e) => e.status === 'COMPLETED').reduce((a, e) => a + e.plannedDurationMinutes, 0);
 
-  const [y, m, d] = selectedScheduleDate.split('-').map(Number);
-  const currentDateObj = new Date(y, m - 1, d);
-  const formattedDateLabel = currentDateObj.toLocaleDateString('en-US', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
+  // Open tasks for this day that don't have a time block yet.
+  const unplaced = useMemo(
+    () =>
+      topLevel(tasks).filter(
+        (t) =>
+          t.status !== 'DONE' &&
+          t.status !== 'BLOCKED' &&
+          (filter === 'ALL' || t.businessCode === filter) &&
+          ((isToday && (t.status === 'TODAY' || t.status === 'OVERDUE')) || t.scheduledDate === date) &&
+          !scheduleEntries.some((e) => e.date === date && e.taskId === t.id && e.status !== 'CANCELLED')
+      ),
+    [tasks, scheduleEntries, date, isToday, filter]
+  );
+
+  /** First free quarter-hour: after "now" on today, otherwise after the last block (09:00 when the day is empty). */
+  const nextSlot = (minutes: number) => {
+    const all = scheduleEntries.filter((e) => e.date === date && e.status !== 'CANCELLED' && e.status !== 'RESCHEDULED');
+    const lastEnd = all.reduce((a, e) => Math.max(a, parseTimeToMinutes(e.plannedEndTime)), 0);
+    const now = isToday ? parseTimeToMinutes(getCurrentTimeString(settings.timezone || 'Asia/Kolkata')) : 0;
+    const start = roundUp15(Math.max(lastEnd, now, all.length === 0 && !isToday ? 9 * 60 : 0));
+    return Math.min(start, 24 * 60 - minutes);
+  };
+
+  const newDraft = (title = '', businessCode = filter === 'ALL' ? '' : filter, duration = 45, taskId?: string): Draft => ({
+    id: null,
+    title,
+    start: formatMinutesToTime(nextSlot(duration)),
+    duration,
+    businessCode,
+    taskId,
   });
 
-  const handlePrevDay = () => setSelectedScheduleDate(addDays(selectedScheduleDate, -1));
-  const handleNextDay = () => setSelectedScheduleDate(addDays(selectedScheduleDate, 1));
-  const handleTodayClick = () => {
-    setSelectedScheduleDate(todayStr);
-    setYearAnchor(new Date().getFullYear());
-  };
-  const handlePrevWeek = () => setSelectedScheduleDate(addDays(selectedScheduleDate, -7));
-  const handleNextWeek = () => setSelectedScheduleDate(addDays(selectedScheduleDate, 7));
-  const goToMonthOffset = (offset: number) => {
-    const [my, mm, md] = selectedScheduleDate.split('-').map(Number);
-    const next = new Date(my, mm - 1 + offset, Math.min(md, 28));
-    setSelectedScheduleDate(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`);
-  };
-  const handleSelectDayFromOverview = (date: string) => {
-    setSelectedScheduleDate(date);
-    setViewTab('DAY');
-  };
-  const handleEditBlock = (entry: ScheduleEntry) => setAddBlockModalOpen(true, entry);
-  const handleRescheduleBlock = (entry: ScheduleEntry) => setRescheduleTargetEntry(entry);
-
-  const dayEntries = scheduleEntries.filter(
-    (e) => e.date === selectedScheduleDate && (scheduleFilterActivity === 'ALL' || e.activityType === scheduleFilterActivity)
-  );
-
-  const unscheduledForDay = tasks.filter(
-    (t) =>
-      !t.isDeleted &&
-      !t.parentTaskId &&
-      t.status !== 'DONE' &&
-      t.status !== 'BLOCKED' &&
-      !scheduleEntries.some((e) => e.date === selectedScheduleDate && e.taskId === t.id)
-  );
-
-  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over) return;
-
-    const activeId = String(active.id);
-    if (!activeId.startsWith(UNSCHEDULED_DRAG_PREFIX)) return;
-    const taskId = (active.data.current as { taskId?: string } | undefined)?.taskId;
-    if (!taskId) return;
-    const task = tasks.find((t) => t.id === taskId);
-    if (!task) return;
-    const duration = task.estimatedMinutes || 45;
-
-    const overId = String(over.id);
-
-    if (overId.startsWith(TIMELINE_SLOT_DROP_PREFIX)) {
-      const data = over.data.current as { date?: string; startMinutes?: number } | undefined;
-      if (!data?.date || data.startMinutes === undefined) return;
-      const startTime = minutesToTimeStr(data.startMinutes);
-      const endTime = minutesToTimeStr(data.startMinutes + duration);
-      scheduleTaskOnCalendar(taskId, data.date, startTime, endTime, false);
-      return;
-    }
-
-    if (overId.startsWith(WEEK_DAY_DROP_PREFIX)) {
-      const data = over.data.current as { date?: string } | undefined;
-      if (!data?.date) return;
-      const { placements } = computeAutoSchedule([task], scheduleEntries, data.date);
-      if (placements.length > 0) {
-        scheduleTaskOnCalendar(taskId, data.date, placements[0].startTime, placements[0].endTime, false);
-      }
-      return;
-    }
-  };
-
-  const handleScheduleMyDay = () => {
-    const { placements, unplaced } = computeAutoSchedule(unscheduledForDay, scheduleEntries, selectedScheduleDate);
-    placements.forEach((p) => scheduleTaskOnCalendar(p.taskId, p.date, p.startTime, p.endTime, false));
-
-    if (placements.length === 0) {
-      setAutoScheduleMsg('Nothing to schedule — no unscheduled tasks for today.');
-    } else if (unplaced.length > 0) {
-      setAutoScheduleMsg(`Scheduled ${placements.length} task${placements.length > 1 ? 's' : ''}. ${unplaced.length} didn't fit — day is full.`);
+  const save = () => {
+    if (!draft || !draft.title.trim()) return;
+    const end = formatMinutesToTime(parseTimeToMinutes(draft.start) + draft.duration);
+    if (draft.id) {
+      updateScheduleEntry(draft.id, { title: draft.title.trim(), plannedStartTime: draft.start, plannedEndTime: end, businessCode: draft.businessCode });
     } else {
-      setAutoScheduleMsg(`Scheduled ${placements.length} task${placements.length > 1 ? 's' : ''} into today's free time.`);
+      addScheduleEntry({
+        date,
+        title: draft.title.trim(),
+        plannedStartTime: draft.start,
+        plannedEndTime: end,
+        plannedDurationMinutes: draft.duration,
+        activityType: 'OTHER',
+        businessCode: draft.businessCode,
+        status: 'PLANNED',
+      });
     }
-    setTimeout(() => setAutoScheduleMsg(null), 5000);
+    setDraft(null);
   };
+
+  const toggle = (e: ScheduleEntry) => {
+    const done = e.status === 'COMPLETED';
+    updateScheduleEntry(e.id, done ? { status: 'PLANNED' } : { status: 'COMPLETED', actualStartTime: e.plannedStartTime, actualEndTime: e.plannedEndTime, actualDurationMinutes: e.plannedDurationMinutes });
+    if (e.taskId) {
+      const t = tasks.find((x) => x.id === e.taskId);
+      if (t && !done && t.status !== 'DONE') completeTask(t.id, e.plannedDurationMinutes);
+      if (t && done && t.status === 'DONE') undoTaskCompletion(t.id);
+    }
+  };
+
+  const placeTask = (taskId: string) => {
+    const t = tasks.find((x) => x.id === taskId);
+    if (!t) return;
+    const dur = Math.max(15, Math.min(240, t.estimatedMinutes || 45));
+    const start = nextSlot(dur);
+    scheduleTaskOnCalendar(taskId, date, formatMinutesToTime(start), formatMinutesToTime(start + dur), false);
+  };
+
+  const nowMins = isToday ? parseTimeToMinutes(getCurrentTimeString(settings.timezone || 'Asia/Kolkata')) : -1;
+  const label = isToday ? 'Today' : format(parseISO(date), 'EEEE');
 
   return (
-    <DndContext sensors={dndSensors} onDragEnd={handleDragEnd}>
-    <PageTransition className="space-y-5 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-            <Clock className="h-3.5 w-3.5" />
-            <span>Schedule</span>
-            {isToday && <span className="rounded bg-emerald-500/15 text-emerald-500 font-semibold px-1.5 py-0.5 text-[10px]">Today</span>}
+    <PageTransition className="space-y-4">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Schedule</h1>
+        <p className="text-sm text-muted-foreground">{entries.length === 0 ? 'Plan the hours of your day' : `${entries.length} block${entries.length === 1 ? '' : 's'} · ${formatMinutes(planned)} planned${finished ? ` · ${formatMinutes(finished)} done` : ''}`}</p>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <button aria-label="Previous day" onClick={() => setSelectedScheduleDate(ymd(addDays(parseISO(date), -1)))} className="flex h-11 w-11 items-center justify-center rounded-full">
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <div className="min-w-[9rem] text-center">
+            <div className="text-base font-bold">{label}</div>
+            <div className="text-xs text-muted-foreground">{format(parseISO(date), 'd MMMM yyyy')}</div>
           </div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground mt-0.5">{formattedDateLabel}</h2>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            onClick={handleScheduleMyDay}
-            disabled={unscheduledForDay.length === 0}
-            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
-          >
-            <Wand2 className="h-3.5 w-3.5" />
-            <span>Schedule My Day</span>
-          </button>
-          <button
-            onClick={() => setAddBlockModalOpen(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>Add Block</span>
-          </button>
-          <button
-            onClick={() => setPlanTomorrowOpen(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>Plan Tomorrow</span>
-          </button>
-          <button
-            onClick={() => setScheduleReviewOpen(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-          >
-            <Moon className="h-3.5 w-3.5" />
-            <span>Day Review</span>
+          <button aria-label="Next day" onClick={() => setSelectedScheduleDate(ymd(addDays(parseISO(date), 1)))} className="flex h-11 w-11 items-center justify-center rounded-full">
+            <ChevronRight className="h-5 w-5" />
           </button>
         </div>
+        {!isToday && (
+          <button onClick={() => setSelectedScheduleDate(today)} className="min-h-[40px] rounded-full border border-border px-3.5 text-xs font-semibold">
+            Today
+          </button>
+        )}
       </div>
 
-      {autoScheduleMsg && (
-        <div className="rounded-lg border border-primary/25 bg-primary/[0.06] px-3.5 py-2 text-[12px] text-primary">
-          {autoScheduleMsg}
-        </div>
-      )}
+      <CalendarChips value={filter} onChange={setFilter} />
 
-      {/* Context strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[12px]">
-        <div className="rounded-lg border border-border px-3 py-2">
-          <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Must-Win</span>
-          <p className="font-medium text-foreground truncate mt-0.5">{mustWinTask ? mustWinTask.title : '—'}</p>
-        </div>
-        <div className="rounded-lg border border-border px-3 py-2">
-          <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Capacity</span>
-          <p className="font-medium text-foreground font-mono mt-0.5">
-            {todayCapacityMinutes}m ({settings.ceoBlockStart}–{settings.ceoBlockEnd})
-          </p>
-        </div>
-        <button
-          onClick={() => setTodayDifferentModalOpen(true)}
-          className="rounded-lg border border-border px-3 py-2 text-left text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-        >
-          <span className="text-[10px] uppercase tracking-wide">Adjust</span>
-          <p className="font-medium mt-0.5">Today is different…</p>
-        </button>
-      </div>
+      {entries.length === 0 && <EmptyCard title="Nothing planned for this day." hint="Add a time block, or place one of your tasks into the day." />}
 
-      {/* View switcher */}
-      <div className="flex items-center gap-1 rounded-lg border border-border p-1 w-fit">
-        {(['DAY', 'WEEK', 'MONTH', 'YEAR'] as ScheduleViewTab[]).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setViewTab(tab)}
-            className={`rounded-md px-3 py-1 text-[11px] font-semibold transition-colors ${
-              viewTab === tab
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-            }`}
-          >
-            {tab.charAt(0) + tab.slice(1).toLowerCase()}
-          </button>
-        ))}
-      </div>
-
-      {/* Date nav + filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-        <div className="flex items-center gap-1.5">
-          {viewTab === 'DAY' && (
-            <>
-              <button onClick={handlePrevDay} className="rounded-md border border-border p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={handleTodayClick}
-                className={`rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
-                  isToday ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Today
-              </button>
-              <button onClick={handleNextDay} className="rounded-md border border-border p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-              <input
-                type="date"
-                value={selectedScheduleDate}
-                onChange={(e) => setSelectedScheduleDate(e.target.value)}
-                className="rounded-md border border-border bg-transparent px-2 py-1 text-[11px] font-mono text-foreground focus:outline-none"
-              />
-            </>
-          )}
-
-          {viewTab === 'WEEK' && (
-            <>
-              <button onClick={handlePrevWeek} className="rounded-md border border-border p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={handleTodayClick}
-                className="rounded-md px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground"
-              >
-                This Week
-              </button>
-              <button onClick={handleNextWeek} className="rounded-md border border-border p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-            </>
-          )}
-
-          {viewTab === 'MONTH' && (
-            <>
-              <button onClick={() => goToMonthOffset(-1)} className="rounded-md border border-border p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <span className="rounded-md px-2.5 py-1.5 text-[11px] font-semibold text-foreground">
-                {currentDateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-              </span>
-              <button onClick={() => goToMonthOffset(1)} className="rounded-md border border-border p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-            </>
-          )}
-
-          {viewTab === 'YEAR' && (
-            <>
-              <button onClick={() => setYearAnchor((yy) => yy - 1)} className="rounded-md border border-border p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <span className="rounded-md px-2.5 py-1.5 text-[11px] font-semibold text-foreground">{yearAnchor}</span>
-              <button onClick={() => setYearAnchor((yy) => yy + 1)} className="rounded-md border border-border p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-            </>
-          )}
-        </div>
-
-        {viewTab === 'DAY' && (
-          <div className="flex items-center gap-2">
-            <select
-              value={scheduleFilterActivity}
-              onChange={(e) => setScheduleFilterActivity(e.target.value as ScheduleActivityType | 'ALL')}
-              className="rounded-md border border-border bg-transparent px-2.5 py-1 text-[11px] text-muted-foreground focus:outline-none"
-            >
-              <option value="ALL">All Activities</option>
-              <option value="SCHOOL">School</option>
-              <option value="TUITION">Tuition</option>
-              <option value="CLASSES">Classes</option>
-              <option value="DESIGNOIA">Designoia</option>
-              <option value="COL">COL</option>
-              <option value="CLIKIXPRESS">Clikixpress</option>
-              <option value="MEETING">Meetings</option>
-              <option value="REST">Rest / Buffer</option>
-            </select>
-
-            <button
-              onClick={() => setShowAnalytics(!showAnalytics)}
-              className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                showAnalytics ? 'border-primary/40 bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <BarChart3 className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Analytics</span>
-            </button>
+      <div className="space-y-2">
+        {entries.map((e, i) => {
+          const start = parseTimeToMinutes(e.plannedStartTime);
+          const end = parseTimeToMinutes(e.plannedEndTime) || 24 * 60;
+          const showNow = isToday && nowMins >= 0 && nowMins < start && (i === 0 || nowMins >= (parseTimeToMinutes(entries[i - 1].plannedEndTime) || 24 * 60));
+          const live = isToday && nowMins >= start && nowMins < end && e.status !== 'COMPLETED';
+          const done = e.status === 'COMPLETED';
+          return (
+            <React.Fragment key={e.id}>
+              {showNow && (
+                <div className="flex items-center gap-2 px-1" aria-label="Now">
+                  <span className="h-2 w-2 rounded-full bg-red-500" />
+                  <span className="h-px flex-1 bg-red-500/60" />
+                  <span className="text-[11px] font-semibold text-red-500">{formatTime12Hour(formatMinutesToTime(nowMins))}</span>
+                </div>
+              )}
+              <div className="flex gap-3">
+                <div className="w-[3.4rem] shrink-0 pt-3.5 text-right text-xs tabular-nums text-muted-foreground">
+                  <div className="font-semibold text-foreground/80">{formatTime12Hour(e.plannedStartTime).replace(' ', ' ')}</div>
+                  <div>{formatMinutes(e.plannedDurationMinutes)}</div>
+                </div>
+                <div className={cn('surface-1 flex min-h-[56px] flex-1 items-center gap-3 rounded-xl border border-border px-3.5', done && 'opacity-60', live && 'ring-1 ring-primary')} style={{ borderLeft: `4px solid ${color(e.businessCode)}` }}>
+                  <button
+                    role="checkbox"
+                    aria-checked={done}
+                    aria-label={done ? 'Mark block as not done' : 'Mark block as done'}
+                    onClick={() => toggle(e)}
+                    className="-m-2.5 flex h-11 w-11 shrink-0 items-center justify-center"
+                  >
+                    <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-2" style={{ borderColor: done ? '#10b981' : color(e.businessCode), background: done ? '#10b981' : 'transparent' }}>
+                      {done && <Check className="h-3.5 w-3.5 text-white" strokeWidth={3.5} />}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setDraft({ id: e.id, title: e.title, start: e.plannedStartTime, duration: e.plannedDurationMinutes, businessCode: e.businessCode ?? '', taskId: e.taskId })}
+                    className="min-w-0 flex-1 py-2 text-left"
+                  >
+                    <div className={cn('text-[15px] font-medium leading-snug', done && 'line-through')}>{e.title}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {formatTime12Hour(e.plannedStartTime)} – {formatTime12Hour(e.plannedEndTime)}
+                      {live && <span className="ml-2 font-semibold text-primary">Now</span>}
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </React.Fragment>
+          );
+        })}
+        {isToday && entries.length > 0 && nowMins >= (parseTimeToMinutes(entries[entries.length - 1].plannedEndTime) || 24 * 60) && (
+          <div className="flex items-center gap-2 px-1">
+            <span className="h-2 w-2 rounded-full bg-red-500" />
+            <span className="h-px flex-1 bg-red-500/60" />
+            <span className="text-[11px] font-semibold text-red-500">{formatTime12Hour(formatMinutesToTime(nowMins))}</span>
           </div>
         )}
       </div>
 
-      {showAnalytics && viewTab === 'DAY' && (
-        <section aria-label="Schedule Analytics">
-          <ScheduleAnalyticsCard />
+      <button onClick={() => setDraft(newDraft())} className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border text-sm font-semibold text-muted-foreground">
+        <Plus className="h-4 w-4" /> Add a time block
+      </button>
+
+      {unplaced.length > 0 && (
+        <section>
+          <h2 className="mb-2 px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Tasks without a time · {unplaced.length}</h2>
+          <div className="space-y-2">
+            {unplaced.map((t) => (
+              <div key={t.id} className="surface-1 flex min-h-[52px] items-center gap-3 rounded-xl border border-border pl-3.5 pr-2">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color(t.businessCode) }} />
+                <span className="min-w-0 flex-1 truncate py-2 text-[15px] font-medium">{t.title}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{formatMinutes(t.estimatedMinutes || 45)}</span>
+                <button onClick={() => placeTask(t.id)} className="min-h-[40px] shrink-0 rounded-full bg-primary/10 px-3.5 text-xs font-semibold text-primary">
+                  Add to day
+                </button>
+              </div>
+            ))}
+          </div>
         </section>
       )}
 
-      {/* Day view */}
-      {viewTab === 'DAY' && (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-3 items-start">
-          <section aria-label="Daily Timeline">
-            <div className="hidden md:block">
-              <ExecutiveTimeline
-                entries={dayEntries}
-                date={selectedScheduleDate}
-                onEditBlock={handleEditBlock}
-                onRescheduleBlock={handleRescheduleBlock}
+      <Sheet
+        open={!!draft}
+        onClose={() => (draft?.title.trim() ? save() : setDraft(null))}
+        title={draft?.id ? 'Edit block' : 'New block'}
+        onDelete={draft?.id ? () => { deleteScheduleEntry(draft.id as string); setDraft(null); } : undefined}
+      >
+        {draft && (
+          <>
+            <div>
+              <Label>What</Label>
+              <input
+                autoFocus={!draft.id}
+                value={draft.title}
+                onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                onKeyDown={(e) => e.key === 'Enter' && save()}
+                placeholder="e.g. Deep work, Class, Client call"
+                className="min-h-[48px] w-full rounded-xl border border-border bg-transparent px-3.5 text-base outline-none focus:border-primary"
               />
             </div>
-
-            <div className="md:hidden">
-              <ScheduleMobileCards
-                onEditBlock={handleEditBlock}
-                onRescheduleBlock={handleRescheduleBlock}
-                onAddNewBlock={() => setAddBlockModalOpen(true)}
-              />
+            <div>
+              <Label>Starts</Label>
+              <input type="time" value={draft.start} onChange={(e) => e.target.value && setDraft({ ...draft, start: e.target.value })} className="min-h-[48px] rounded-xl border border-border bg-transparent px-3.5 text-base outline-none focus:border-primary" />
             </div>
-          </section>
-
-          <div className="hidden lg:block">
-            <UnscheduledTasksPanel tasks={unscheduledForDay} />
-          </div>
-        </div>
-      )}
-
-      {/* Week view */}
-      {viewTab === 'WEEK' && (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-3 items-start">
-          <section aria-label="Weekly Schedule">
-            <ScheduleWeekView
-              weekAnchorDate={selectedScheduleDate}
-              onEditBlock={handleEditBlock}
-              onSelectDay={handleSelectDayFromOverview}
-            />
-          </section>
-
-          <div className="hidden lg:block">
-            <UnscheduledTasksPanel tasks={unscheduledForDay} />
-          </div>
-        </div>
-      )}
-
-      {/* Month view */}
-      {viewTab === 'MONTH' && (
-        <section aria-label="Monthly Schedule">
-          <ScheduleMonthView
-            monthAnchorDate={selectedScheduleDate}
-            onSelectDay={handleSelectDayFromOverview}
-          />
-        </section>
-      )}
-
-      {/* Year view */}
-      {viewTab === 'YEAR' && (
-        <section aria-label="Yearly Schedule Overview">
-          <ScheduleYearView
-            year={yearAnchor}
-            onSelectDay={handleSelectDayFromOverview}
-            onSelectMonth={(date) => {
-              setSelectedScheduleDate(date);
-              setViewTab('MONTH');
-            }}
-          />
-        </section>
-      )}
-
-      <PlanTomorrowModal />
-      <ScheduleBlockModal />
-      <ScheduleReviewModal />
-      <RescheduleModal entry={rescheduleTargetEntry} onClose={() => setRescheduleTargetEntry(null)} />
-      <TodayIsDifferentModal />
+            <div>
+              <Label>Length</Label>
+              <div className="flex flex-wrap gap-2">
+                {DURATIONS.map((m) => (
+                  <Pill key={m} active={draft.duration === m} onClick={() => setDraft({ ...draft, duration: m })}>{formatMinutes(m)}</Pill>
+                ))}
+              </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">Ends at {formatTime12Hour(formatMinutesToTime(parseTimeToMinutes(draft.start) + draft.duration))}{calculateMinutesBetween(draft.start, '23:59') < draft.duration ? ' (past midnight)' : ''}</p>
+            </div>
+            <div>
+              <Label>Calendar</Label>
+              <div className="flex flex-wrap gap-2">
+                <Pill active={!draft.businessCode} color="#64748b" onClick={() => setDraft({ ...draft, businessCode: '' })}>None</Pill>
+                {businesses.map((b) => (
+                  <Pill key={b.code} active={draft.businessCode === b.code} color={b.color} onClick={() => setDraft({ ...draft, businessCode: b.code })}>{b.name}</Pill>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </Sheet>
     </PageTransition>
-    </DndContext>
   );
 }
