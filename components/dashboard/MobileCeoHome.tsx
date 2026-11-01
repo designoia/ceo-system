@@ -1,23 +1,17 @@
 'use client';
 
 import React from 'react';
-import { motion } from 'framer-motion';
 import {
-  Target,
-  AlertCircle,
-  Clock,
   Users,
   HelpCircle,
   Layers,
   FolderKanban,
-  ChevronRight,
-  Play,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
-import { formatMinutes } from '@/lib/utils';
+import { TodayTable } from '@/components/work/TodayTable';
 import { SyncStatusIndicator } from '@/components/integrations/SyncStatusIndicator';
 import { Task } from '@/lib/types';
-import { detectOverload, detectStalledProjects } from '@/lib/ai-heuristics';
+import { detectStalledProjects } from '@/lib/ai-heuristics';
 
 function Section({
   icon: Icon,
@@ -46,7 +40,7 @@ function Section({
 }
 
 export function MobileCeoHome({ onOpenTask }: { onOpenTask: (t: Task) => void }) {
-  const { tasks, projects, todayCapacityMinutes, getProjectProgress } = useStore();
+  const { tasks, projects, getProjectProgress } = useStore();
 
   const active = tasks.filter((t) => !t.isDeleted && !t.parentTaskId);
   const todayTasks = active.filter((t) => t.status === 'TODAY');
@@ -54,19 +48,6 @@ export function MobileCeoHome({ onOpenTask }: { onOpenTask: (t: Task) => void })
   const upcomingTasks = active.filter((t) => t.status === 'NEXT' || t.status === 'THIS_WEEK').slice(0, 4);
   const waitingTasks = active.filter((t) => t.delegation === 'WAITING' && t.status !== 'DONE');
   const decisionTasks = active.filter((t) => t.isDecision && t.status !== 'DONE');
-
-  const top3 = [...todayTasks]
-    .sort((a, b) => {
-      if (a.isMustWin !== b.isMustWin) return a.isMustWin ? -1 : 1;
-      const order: Record<string, number> = { P1: 0, P2: 1, P3: 2 };
-      return (order[a.priority] ?? 1) - (order[b.priority] ?? 1);
-    })
-    .slice(0, 3);
-
-  const currentTask = top3[0];
-  const overload = detectOverload(todayTasks, todayCapacityMinutes);
-  const workloadMinutes = overload.workloadMinutes;
-  const overCapacity = overload.isOverloaded;
 
   const activeProjects = projects.filter((p) => p.status === 'ACTIVE' && !p.parentProjectId);
   const stalled = detectStalledProjects(activeProjects, tasks, getProjectProgress);
@@ -77,7 +58,6 @@ export function MobileCeoHome({ onOpenTask }: { onOpenTask: (t: Task) => void })
   if (overdueTasks.length > 0) briefParts.push(`${overdueTasks.length} overdue`);
   briefParts.push(`${todayTasks.length} planned today`);
   if (decisionTasks.length > 0) briefParts.push(`${decisionTasks.length} decision${decisionTasks.length > 1 ? 's' : ''} waiting on you`);
-  if (overCapacity) briefParts.push('over capacity');
   const brief = briefParts.length > 0 ? briefParts.join(' · ') : 'Clear runway — nothing urgent right now.';
 
   return (
@@ -91,67 +71,7 @@ export function MobileCeoHome({ onOpenTask }: { onOpenTask: (t: Task) => void })
         <p className="text-[13px] text-foreground/90 leading-snug">{brief}</p>
       </div>
 
-      {/* Current task */}
-      {currentTask && (
-        <button
-          onClick={() => onOpenTask(currentTask)}
-          className="w-full text-left rounded-lg border border-primary/30 bg-primary/[0.06] p-3.5"
-        >
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-primary">Do Next</span>
-            <Play className="h-3.5 w-3.5 text-primary" />
-          </div>
-          <p className="text-[14px] font-medium text-foreground">{currentTask.title}</p>
-          <span className="text-[11px] text-muted-foreground font-mono">{formatMinutes(currentTask.estimatedMinutes)}</span>
-        </button>
-      )}
-
-      {/* Workload */}
-      <div className="rounded-lg border border-border surface-1 p-3.5">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Today's Workload</span>
-          <span className={`text-[11px] font-mono ${overCapacity ? 'text-amber-500' : 'text-muted-foreground'}`}>
-            {formatMinutes(workloadMinutes)} / {formatMinutes(todayCapacityMinutes)}
-          </span>
-        </div>
-        <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${Math.min(100, (workloadMinutes / Math.max(1, todayCapacityMinutes)) * 100)}%` }}
-            transition={{ duration: 0.4, ease: 'easeOut' }}
-            className={`h-full rounded-full ${overCapacity ? 'bg-amber-500' : 'bg-primary'}`}
-          />
-        </div>
-      </div>
-
-      {/* Top 3 */}
-      {top3.length > 0 && (
-        <Section icon={Target} title="Top 3" tone="primary">
-          <div className="space-y-1.5">
-            {top3.map((t, i) => (
-              <button key={t.id} onClick={() => onOpenTask(t)} className="w-full flex items-center gap-2.5 text-left">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/15 text-primary text-[10px] font-bold shrink-0">
-                  {i + 1}
-                </span>
-                <span className="text-[13px] text-foreground truncate flex-1">{t.title}</span>
-              </button>
-            ))}
-          </div>
-        </Section>
-      )}
-
-      {/* Overdue */}
-      {overdueTasks.length > 0 && (
-        <Section icon={AlertCircle} title="Overdue" count={overdueTasks.length} tone="amber">
-          <div className="space-y-1.5">
-            {overdueTasks.slice(0, 4).map((t) => (
-              <button key={t.id} onClick={() => onOpenTask(t)} className="w-full text-left text-[13px] text-foreground truncate block">
-                {t.title}
-              </button>
-            ))}
-          </div>
-        </Section>
-      )}
+      <TodayTable onOpenTask={onOpenTask} />
 
       {/* Decisions */}
       {decisionTasks.length > 0 && (
