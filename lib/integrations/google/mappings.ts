@@ -30,23 +30,8 @@ export function resolveBusinessAndProjectFromList(
     };
   }
 
-  // 2. Fallback heuristic based on common names
-  const normalized = listTitle.trim().toUpperCase();
-  if (normalized.includes('DESIGNOIA') || normalized.includes('PRORIDO')) {
-    return { businessCode: 'DESIGNOIA' };
-  }
-  if (normalized.includes('COL') || normalized.includes('CIRCLE OF LEARNING') || normalized.includes('STUDY')) {
-    return { businessCode: 'COL' };
-  }
-  if (normalized.includes('CLIKIXPRESS') || normalized.includes('ECOMMERCE') || normalized.includes('ORDERS')) {
-    return { businessCode: 'CLIKIXPRESS' };
-  }
-  if (normalized.includes('PERSONAL') || normalized.includes('HOME') || normalized.includes('SCHOOL') || normalized.includes('HEALTH')) {
-    return { businessCode: 'PERSONAL' };
-  }
-
-  // Default to COL or PERSONAL
-  return { businessCode: 'COL' };
+  // 2. No saved mapping: leave the task without a calendar rather than guessing.
+  return { businessCode: '' };
 }
 
 /**

@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { DndContext, DragOverlay, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, DragOverlay, MouseSensor, TouchSensor, pointerWithin, useDraggable, useDroppable, useSensor, useSensors } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
 
-/** Drag-and-drop area. Touch drags start on a short press so vertical/horizontal scrolling still works on phones. */
+/** Drag-and-drop area. Touch drags start on a short press so scrolling still works on phones. */
 export function DndArea({
   onDrop,
   renderOverlay,
@@ -23,6 +23,8 @@ export function DndArea({
   return (
     <DndContext
       sensors={sensors}
+      // Drop where the finger/cursor is, not where the (often full-width) dragged row overlaps most.
+      collisionDetection={pointerWithin}
       onDragStart={(e) => {
         setActiveId(String(e.active.id));
         try {
@@ -43,10 +45,10 @@ export function DndArea({
   );
 }
 
-export function Draggable({ id, children }: { id: string; children: React.ReactNode }) {
+export function Draggable({ id, children, className }: { id: string; children: React.ReactNode; className?: string }) {
   const { setNodeRef, listeners, attributes, isDragging } = useDraggable({ id });
   return (
-    <div ref={setNodeRef} {...listeners} {...attributes} role="presentation" tabIndex={-1} style={{ opacity: isDragging ? 0.35 : 1, touchAction: 'manipulation' }}>
+    <div ref={setNodeRef} {...listeners} {...attributes} className={className} style={{ opacity: isDragging ? 0.35 : 1 }}>
       {children}
     </div>
   );
@@ -55,19 +57,18 @@ export function Draggable({ id, children }: { id: string; children: React.ReactN
 export function DropZone({
   id,
   className,
-  overStyle,
-  style,
+  overClassName,
   children,
+  ...rest
 }: {
   id: string;
   className?: string;
-  overStyle?: React.CSSProperties;
-  style?: React.CSSProperties;
+  overClassName?: string;
   children: React.ReactNode;
-}) {
+} & Omit<React.HTMLAttributes<HTMLDivElement>, 'id' | 'className' | 'children'>) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
-    <div ref={setNodeRef} className={cn('transition-colors', className)} style={{ ...style, ...(isOver ? overStyle : undefined) }}>
+    <div ref={setNodeRef} className={cn(className, isOver && overClassName)} {...rest}>
       {children}
     </div>
   );

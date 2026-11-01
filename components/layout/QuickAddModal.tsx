@@ -1,226 +1,126 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { X, ArrowRight, Zap, Target } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ChevronDown, X } from 'lucide-react';
+import { cn, getTodayDateString } from '@/lib/utils';
 import { useStore } from '@/lib/store';
-import { BusinessCode, TaskPriority, TaskStatus } from '@/lib/types';
-import { classifyTask } from '@/lib/ai-heuristics';
 import { useCloseOnRouteChange } from '@/lib/hooks/useCloseOnRouteChange';
+import { statusForDate } from '@/lib/work';
 
+type When = 'INBOX' | 'TODAY' | 'TOMORROW';
+
+/**
+ * Quick capture: type, press Enter, done. The task lands in your Inbox.
+ * Day and calendar are optional and tucked away.
+ */
 export function QuickAddModal() {
-  const { isQuickAddOpen, setQuickAddOpen, addTask, businesses, projects } = useStore();
+  const { isQuickAddOpen, setQuickAddOpen, addTask, businesses, settings } = useStore();
   useCloseOnRouteChange(isQuickAddOpen, () => setQuickAddOpen(false));
   const [title, setTitle] = useState('');
-  const [businessCode, setBusinessCode] = useState<BusinessCode>('COL');
-  const [businessTouched, setBusinessTouched] = useState(false);
-  const [projectId, setProjectId] = useState<string>('');
-  const [priority, setPriority] = useState<TaskPriority>('P1');
-  const [status, setStatus] = useState<TaskStatus>('INBOX');
-  const [estimatedMinutes, setEstimatedMinutes] = useState<number>(45);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [when, setWhen] = useState<When>('INBOX');
+  const [calendar, setCalendar] = useState('');
+  const [details, setDetails] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Cmd/Ctrl+K is owned by the global CommandPalette, which opens this
-  // modal via the "Add Task" command. Only Escape-to-close lives here.
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isQuickAddOpen) {
-        setQuickAddOpen(false);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isQuickAddOpen, setQuickAddOpen]);
 
   useEffect(() => {
     if (isQuickAddOpen) {
       setTimeout(() => inputRef.current?.focus(), 50);
-    } else {
-      setTitle('');
-      setShowAdvanced(false);
-      setBusinessTouched(false);
+      return;
     }
+    setTitle('');
+    setWhen('INBOX');
+    setCalendar('');
+    setDetails(false);
   }, [isQuickAddOpen]);
 
-  // Quiet background classification — suggests a business from the title
-  // until the user picks one manually themselves.
   useEffect(() => {
-    if (businessTouched) return;
-    const suggestion = classifyTask(title);
-    if (suggestion) setBusinessCode(suggestion);
-  }, [title, businessTouched]);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && isQuickAddOpen && setQuickAddOpen(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isQuickAddOpen, setQuickAddOpen]);
 
   if (!isQuickAddOpen) return null;
 
-  const handleSubmit = (targetStatus: TaskStatus = status, isMustWin = false) => {
-    if (!title.trim()) return;
-
-    addTask({
-      title: title.trim(),
-      businessCode,
-      projectId: projectId || undefined,
-      priority,
-      status: targetStatus,
-      isMustWin,
-      estimatedMinutes,
-    });
-
-    setTitle('');
+  const submit = () => {
+    const name = title.trim();
+    if (!name) return;
+    const today = getTodayDateString(settings.timezone || 'Asia/Kolkata');
+    const date =
+      when === 'TODAY' ? today : when === 'TOMORROW' ? new Date(Date.parse(today) + 86_400_000).toISOString().slice(0, 10) : undefined;
+    addTask({ title: name, businessCode: calendar, scheduledDate: date, status: statusForDate(date, today) });
     setQuickAddOpen(false);
   };
 
-  const filteredProjects = projects.filter((p) => p.businessCode === businessCode);
+  const chip = (active: boolean, color?: string) =>
+    cn('min-h-[40px] rounded-full border px-4 text-[13px] font-semibold', active ? 'text-white' : 'border-border text-muted-foreground');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3">
-          <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
-              <Zap className="h-3.5 w-3.5" />
-            </span>
-            <h2 className="text-sm font-semibold text-foreground">Quick Capture</h2>
-          </div>
-          <button
-            onClick={() => setQuickAddOpen(false)}
-            className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-          >
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center sm:p-4" onClick={() => setQuickAddOpen(false)}>
+      <div
+        className="surface-1 w-full rounded-t-2xl border border-border p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-w-md sm:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="New task"
+      >
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-sm font-bold">New task</h2>
+          <button onClick={() => setQuickAddOpen(false)} aria-label="Close" className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Input */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSubmit('INBOX', false);
-          }}
-          className="space-y-4"
-        >
-          <div>
-            <input
-              ref={inputRef}
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="What needs to be done? (e.g. Finish 10th Notes)"
-              className="w-full rounded-xl border border-border bg-background px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-          </div>
+        <input
+          ref={inputRef}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
+          placeholder="What's on your mind?"
+          enterKeyHint="done"
+          className="min-h-[52px] w-full rounded-xl border border-border bg-background px-4 text-base outline-none focus:border-primary"
+        />
 
-          {/* Quick toggle metadata */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="text-muted-foreground hover:text-foreground font-medium underline underline-offset-4"
-            >
-              {showAdvanced ? 'Simple view' : '+ Add business / project / time'}
-            </button>
+        <button onClick={() => setDetails((v) => !v)} className="mt-2 flex min-h-[40px] items-center gap-1.5 text-[13px] font-medium text-muted-foreground">
+          <ChevronDown className={cn('h-4 w-4 transition-transform', details && 'rotate-180')} />
+          Day &amp; calendar <span className="text-xs">(optional)</span>
+        </button>
 
-            <span className="text-[11px] text-muted-foreground">Press Enter to save to Inbox</span>
-          </div>
-
-          {/* Advanced fields (Optional) */}
-          {showAdvanced && (
-            <div className="grid grid-cols-2 gap-3 pt-2 text-xs animate-in slide-in-from-top-2 duration-150">
-              <div>
-                <label className="mb-1 block font-medium text-muted-foreground">Business</label>
-                <select
-                  value={businessCode}
-                  onChange={(e) => {
-                    setBusinessCode(e.target.value as BusinessCode);
-                    setBusinessTouched(true);
-                    setProjectId('');
-                  }}
-                  className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-foreground focus:outline-none"
-                >
-                  {businesses.map((b) => (
-                    <option key={b.code} value={b.code}>
-                      {b.name} ({b.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block font-medium text-muted-foreground">Project</label>
-                <select
-                  value={projectId}
-                  onChange={(e) => setProjectId(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-foreground focus:outline-none"
-                >
-                  <option value="">No Project</option>
-                  {filteredProjects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block font-medium text-muted-foreground">Priority</label>
-                <select
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                  className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-foreground focus:outline-none"
-                >
-                  <option value="P1">P1 (Critical)</option>
-                  <option value="P2">P2 (Important)</option>
-                  <option value="P3">P3 (Routine)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block font-medium text-muted-foreground">Estimated Time</label>
-                <select
-                  value={estimatedMinutes}
-                  onChange={(e) => setEstimatedMinutes(Number(e.target.value))}
-                  className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-foreground focus:outline-none"
-                >
-                  <option value={10}>10 min (Rescue)</option>
-                  <option value={25}>25 min (Short)</option>
-                  <option value={45}>45 min (CEO Block)</option>
-                  <option value={60}>60 min (Deep Work)</option>
-                </select>
-              </div>
+        {details && (
+          <div className="mb-1 space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ['INBOX', 'Inbox'],
+                  ['TODAY', 'Today'],
+                  ['TOMORROW', 'Tomorrow'],
+                ] as [When, string][]
+              ).map(([id, label]) => (
+                <button key={id} onClick={() => setWhen(id)} className={chip(when === id)} style={when === id ? { background: 'hsl(var(--primary))', borderColor: 'hsl(var(--primary))' } : undefined}>
+                  {label}
+                </button>
+              ))}
             </div>
-          )}
-
-          {/* Action Buttons */}
-          <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-border">
-            <button
-              type="button"
-              onClick={() => handleSubmit('TODAY', true)}
-              disabled={!title.trim()}
-              className="flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors"
-            >
-              <Target className="h-3.5 w-3.5" />
-              <span>Set as MUST-WIN</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSubmit('TODAY', false)}
-              disabled={!title.trim()}
-              className="rounded-lg border border-border bg-accent px-3 py-2 text-xs font-medium text-foreground hover:bg-accent/80 disabled:opacity-50 transition-colors"
-            >
-              Do Today
-            </button>
-
-            <button
-              type="submit"
-              disabled={!title.trim()}
-              className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-sm"
-            >
-              <span>Save to Inbox</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </button>
+            {businesses.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setCalendar('')} className={chip(!calendar)} style={!calendar ? { background: '#64748b', borderColor: '#64748b' } : undefined}>
+                  No calendar
+                </button>
+                {businesses.map((b) => (
+                  <button key={b.code} onClick={() => setCalendar(b.code)} className={chip(calendar === b.code)} style={calendar === b.code ? { background: b.color, borderColor: b.color } : undefined}>
+                    {b.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        </form>
+        )}
+
+        <button
+          onClick={submit}
+          disabled={!title.trim()}
+          className="mt-3 h-12 w-full rounded-xl bg-primary text-sm font-bold text-primary-foreground disabled:opacity-40"
+        >
+          Add task
+        </button>
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ import {
   TrendingUp,
   Building,
   GraduationCap,
+  Folder,
   Package,
   User
 } from 'lucide-react';
@@ -32,7 +33,7 @@ export default function GoalsPage() {
   const [selectedBusiness, setSelectedBusiness] = useState<BusinessCode | 'ALL'>('ALL');
   const [editingMonthId, setEditingMonthId] = useState<string | null>(null);
   const [newGoalTitle, setNewGoalTitle] = useState('');
-  const [newGoalBiz, setNewGoalBiz] = useState<BusinessCode>('COL');
+  const [newGoalBiz, setNewGoalBiz] = useState<BusinessCode>('');
   const [newGoalYear, setNewGoalYear] = useState(2028);
 
   const filteredGoals = selectedBusiness === 'ALL'
@@ -60,6 +61,7 @@ export default function GoalsPage() {
       case 'DESIGNOIA': return <Sparkles className="h-4 w-4" />;
       case 'CLIKIXPRESS': return <Package className="h-4 w-4" />;
       case 'PERSONAL': return <User className="h-4 w-4" />;
+      default: return <Folder className="h-4 w-4" />;
     }
   };
 

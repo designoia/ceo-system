@@ -1,4 +1,7 @@
-export type BusinessCode = 'COL' | 'DESIGNOIA' | 'CLIKIXPRESS' | 'PERSONAL';
+// User-created calendar/category code (e.g. 'COL'). '' means "no calendar".
+export type BusinessCode = string;
+
+export type Quadrant = 'DO' | 'DECIDE' | 'DELEGATE' | 'DELETE';
 
 export type TaskStatus = 
   | 'INBOX' 
@@ -105,6 +108,7 @@ export interface Task {
 
   // CEO Delegation & Decision Model
   delegation?: TaskDelegation; // Who owns execution — defaults to YOU when unset
+  quadrant?: Quadrant; // Decision matrix placement (unset = not sorted yet)
   isDecision?: boolean; // Surfaces in the Decision Queue instead of the task list
   waitingOn?: string; // Free-text: what/who this is blocked waiting on
 

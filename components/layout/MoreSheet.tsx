@@ -3,16 +3,16 @@
 import React from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FolderKanban, Target, BarChart3, Settings, X, Bot, LayoutGrid } from 'lucide-react';
+import { FolderKanban, Target, BarChart3, Settings, X, Bot, Clock } from 'lucide-react';
 import { DESIGNOIA_MOTION } from '@/lib/motion';
 
 const MORE_ITEMS = [
-  { href: '/tracker', label: 'Task Tracker', icon: LayoutGrid, desc: 'Calendar, board, matrix & timeline' },
-  { href: '/ai', label: 'AI Command Center', icon: Bot, desc: 'Specialized AI business assistants' },
-  { href: '/projects', label: 'Projects', icon: FolderKanban, desc: 'Initiatives & progress' },
   { href: '/goals', label: 'Goals', icon: Target, desc: '5-year plan & roadmap' },
+  { href: '/projects', label: 'Projects', icon: FolderKanban, desc: 'Initiatives & progress' },
+  { href: '/schedule', label: 'Schedule', icon: Clock, desc: 'Daily time blocks' },
   { href: '/reviews', label: 'Reviews', icon: BarChart3, desc: 'Weekly & monthly review' },
-  { href: '/settings', label: 'Settings', icon: Settings, desc: 'Integrations & backup' },
+  { href: '/ai', label: 'AI Command Center', icon: Bot, desc: 'Specialized AI business assistants' },
+  { href: '/settings', label: 'Settings', icon: Settings, desc: 'Reset, backup & integrations' },
 ];
 
 export function MoreSheet({ open, onClose }: { open: boolean; onClose: () => void }) {

@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Home, CheckSquare, Clock, MoreHorizontal, Plus } from 'lucide-react';
+import { Home, CheckSquare, CalendarDays, MoreHorizontal, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/lib/store';
 import { DESIGNOIA_MOTION } from '@/lib/motion';
@@ -17,12 +17,12 @@ const NAV_ITEMS = [
 ];
 
 const NAV_ITEMS_RIGHT = [
-  { href: '/schedule', label: 'Schedule', icon: Clock },
+  { href: '/calendar', label: 'Calendar', icon: CalendarDays },
 ];
 
 export function MobileNav() {
   const pathname = usePathname();
-  const { setCommandPaletteOpen } = useStore();
+  const { setQuickAddOpen } = useStore();
   const [moreOpen, setMoreOpen] = useState(false);
   useCloseOnRouteChange(moreOpen, () => setMoreOpen(false));
 
@@ -61,7 +61,7 @@ export function MobileNav() {
         {/* Fastest capture: opens the command palette focused for instant task/idea entry */}
         <motion.button
           whileTap={DESIGNOIA_MOTION.buttonPress}
-          onClick={() => setCommandPaletteOpen(true)}
+          onClick={() => setQuickAddOpen(true)}
           className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg"
           aria-label="Quick capture"
         >
