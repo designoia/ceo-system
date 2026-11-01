@@ -10,7 +10,7 @@ import { topLevel } from '@/lib/work';
 import { PageTransition } from '@/components/motion/PageTransition';
 import { TrashModal } from '@/components/tasks/TrashModal';
 import { CalendarChips, ManageCalendarsSheet } from '@/components/work/CalendarChips';
-import { QuickAddBar, TaskRow } from '@/components/work/TaskParts';
+import { QuickAddBar, TaskRow, useToday } from '@/components/work/TaskParts';
 import { TaskSheet } from '@/components/work/TaskSheet';
 
 function Section({
@@ -53,6 +53,7 @@ export default function TasksPage() {
   const [manage, setManage] = useState(false);
   const [trash, setTrash] = useState(false);
   const [showDone, setShowDone] = useState(false);
+  const today = useToday();
 
   const groups = useMemo(() => {
     const list = topLevel(tasks).filter((t) => filter === 'ALL' || t.businessCode === filter);
@@ -111,12 +112,12 @@ export default function TasksPage() {
       </div>
 
       <CalendarChips value={filter} onChange={setFilter} />
-      <QuickAddBar businessCode={filter === 'ALL' ? '' : filter} placeholder="Add a task — press Enter" />
+      <QuickAddBar date={today} businessCode={filter === 'ALL' ? '' : filter} placeholder="Add a task for today — press Enter" />
 
       {groups.total === 0 && (
         <div className="rounded-2xl border border-dashed border-border px-6 py-12 text-center">
           <p className="text-[15px] font-semibold">Start by typing a task above.</p>
-          <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">New tasks land in <b>Inbox</b>. Tap <b>Today</b> beside one to do it today, or drag it onto a day in Calendar.</p>
+          <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">New tasks are added to <b>today</b>. Open one to change its day, or drag it to another day in Calendar.</p>
         </div>
       )}
 

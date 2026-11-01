@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/lib/store';
-import { TaskPriority } from '@/lib/types';
+import { TaskDelegation, TaskPriority } from '@/lib/types';
 import { QUADRANTS } from '@/lib/work';
 import { Checklist, tomorrowOf, useToday } from './TaskParts';
 
@@ -163,6 +163,18 @@ export function TaskSheet({ taskId, onClose }: { taskId: string | null; onClose:
                         ))}
                       </div>
                     </div>
+                    <div>
+                      <Label>Owner</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {([['YOU', 'You'], ['TEAM', 'Team'], ['AUTOMATION', 'Automation'], ['AI', 'AI'], ['WAITING', 'Waiting']] as [TaskDelegation, string][]).map(([id, label]) => (
+                          <Pill key={id} active={(task.delegation ?? 'YOU') === id} onClick={() => updateTask(task.id, { delegation: id })}>{label}</Pill>
+                        ))}
+                      </div>
+                    </div>
+                    <label className="flex min-h-[44px] items-center gap-3 text-sm">
+                      <input type="checkbox" checked={!!task.isDecision} onChange={(e) => updateTask(task.id, { isDecision: e.target.checked })} className="h-5 w-5 accent-blue-500" />
+                      Needs a decision from me
+                    </label>
                     <div>
                       <Label>Notes</Label>
                       <textarea

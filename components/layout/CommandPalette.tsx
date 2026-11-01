@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plus, FolderKanban, CheckCircle2, Circle, Calendar, ArrowRight, Lightbulb, Bot } from 'lucide-react';
 import { useStore } from '@/lib/store';
-import { TaskDrawer } from '@/components/tasks/TaskDrawer';
+import { TaskSheet } from '@/components/work/TaskSheet';
 import { Task, TaskStatus } from '@/lib/types';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 import { useCloseOnRouteChange } from '@/lib/hooks/useCloseOnRouteChange';
@@ -345,11 +345,7 @@ export function CommandPalette() {
         )}
       </AnimatePresence>
 
-      <TaskDrawer
-        task={drawerTask}
-        onClose={() => setDrawerTask(null)}
-        onSchedule={(t) => openScheduleModal(t)}
-      />
+      <TaskSheet taskId={drawerTask?.id ?? null} onClose={() => setDrawerTask(null)} />
     </>
   );
 }

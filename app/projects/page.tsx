@@ -8,7 +8,7 @@ import { Project, ProjectStatus } from '@/lib/types';
 import { NO_CAL_COLOR, topLevel } from '@/lib/work';
 import { PageTransition } from '@/components/motion/PageTransition';
 import { CalendarChips } from '@/components/work/CalendarChips';
-import { TaskRow } from '@/components/work/TaskParts';
+import { TaskRow, useToday } from '@/components/work/TaskParts';
 import { TaskSheet } from '@/components/work/TaskSheet';
 import { AddLine, EmptyCard, Label, Pill, ProgressBar, Sheet } from '@/components/work/ui';
 
@@ -168,10 +168,11 @@ export default function ProjectsPage() {
 /** Adds a task straight into the project (lands in Inbox, like everywhere else). */
 function ProjectQuickAdd({ projectId, businessCode }: { projectId: string; businessCode: string }) {
   const { addTask } = useStore();
+  const today = useToday();
   return (
     <AddLine
-      placeholder="Add a task to this project"
-      onAdd={(title) => addTask({ title, projectId, businessCode, status: 'INBOX' })}
+      placeholder="Add a task to this project (for today)"
+      onAdd={(title) => addTask({ title, projectId, businessCode, scheduledDate: today, status: 'TODAY' })}
     />
   );
 }
