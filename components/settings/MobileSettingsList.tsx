@@ -11,6 +11,7 @@ import {
   Bell,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
+import { useSync } from '@/lib/sync/SyncProvider';
 import { SyncStatusIndicator } from '@/components/integrations/SyncStatusIndicator';
 
 const TIMEZONES = [
@@ -81,6 +82,8 @@ export function MobileSettingsList() {
     importDataJSON,
     resetToCleanStart,
   } = useStore();
+  const sync = useSync();
+  const syncing = sync.status !== 'off' && sync.status !== 'signed-out';
 
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const isConnected = googleConnection?.status === 'CONNECTED';
@@ -110,6 +113,7 @@ export function MobileSettingsList() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (event) => {
+      if (syncing) sync.allowWipe();
       const ok = importDataJSON(event.target?.result as string);
       setImportStatus(ok ? 'Imported successfully' : 'Failed to parse file');
       setTimeout(() => setImportStatus(null), 3000);
@@ -205,7 +209,8 @@ export function MobileSettingsList() {
           icon={<Trash2 className="h-4 w-4 text-amber-500" />}
           label="Clean Start"
           onClick={() => {
-            if (confirm('Clear all tasks, projects, and schedule data? This keeps Goals. Cannot be undone.')) {
+            if (confirm(`Delete ALL calendars, goals, projects, tasks and schedule data? This cannot be undone.${syncing ? ' It will also be deleted from your other signed-in devices.' : ''}`)) {
+              if (syncing) sync.allowWipe();
               resetToCleanStart();
             }
           }}

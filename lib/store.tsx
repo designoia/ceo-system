@@ -55,9 +55,9 @@ import {
   parseTimeToMinutes 
 } from './utils';
 import { generateDailyRecommendation } from './recommendation-engine';
+import type { SyncKind } from './sync/engine';
 import { calculateMomentum } from './momentum-engine';
 import { buildCalendarEventDescription, resolveBusinessAndProjectFromList } from './integrations/google/mappings';
-import { markPendingChange, clearPending } from './offline-queue';
 
 const STORAGE_KEYS = {
   BUSINESSES: 'ceo_os_businesses_v2',
@@ -181,6 +181,10 @@ interface StoreContextType {
 
   // Actions
   setQuickAddOpen: (open: boolean) => void;
+  /** True once saved data has been read from this device. Sync must not run before this. */
+  isLoaded: boolean;
+  /** Used by cloud sync to apply changes that arrived from another device. */
+  applySyncPatch: (kind: SyncKind, fn: (prev: any[]) => any[]) => void;
   /** Day the quick-add button adds to (set by the Calendar when you pick a day). null = today. */
   quickAddDate: string | null;
   setQuickAddDate: (date: string | null) => void;
@@ -621,125 +625,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!isLoaded || typeof window === 'undefined') return;
     localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
   }, [tasks, isLoaded]);
-
-  // Pull tasks from Supabase on load, then periodically re-poll (and on
-  // window focus / visibility regain) so edits made on another device
-  // (e.g. mobile) show up on an already-open tab without a full reload.
-  // Merge is last-write-wins per task, comparing updatedAt/lastStatusChangeAt
-  // timestamps rather than blindly preferring the remote copy — this way a
-  // local edit that hasn't been pushed yet (still newer) is never clobbered.
-  const tasksRef = useRef<Task[]>(tasks);
-  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
-
-  const mergeRemoteTasks = useCallback((remoteTasks: Task[]) => {
-    setTasks((prev) => {
-      const byId = new Map(prev.map((t) => [t.id, t]));
-      const getStamp = (t: Task) => {
-        const a = t.updatedAt ? Date.parse(t.updatedAt) : NaN;
-        const b = t.lastStatusChangeAt ? Date.parse(t.lastStatusChangeAt) : NaN;
-        const stamps = [a, b].filter((n) => !Number.isNaN(n));
-        return stamps.length ? Math.max(...stamps) : 0;
-      };
-      let changed = false;
-      for (const remote of remoteTasks) {
-        const local = byId.get(remote.id);
-        if (!local) {
-          byId.set(remote.id, remote);
-          changed = true;
-          continue;
-        }
-        if (getStamp(remote) > getStamp(local)) {
-          byId.set(remote.id, remote);
-          changed = true;
-        }
-        // else: local is newer (or equal) — keep local, don't overwrite.
-      }
-      return changed ? Array.from(byId.values()) : prev;
-    });
-  }, []);
-
-  const pullRemoteTasks = useCallback(() => {
-    if (typeof window === 'undefined') return;
-    fetch('/api/tasks')
-      .then((r) => r.json())
-      .then((data: { configured: boolean; tasks: Task[] }) => {
-        if (!data.configured || !data.tasks || data.tasks.length === 0) return;
-        mergeRemoteTasks(data.tasks);
-      })
-      .catch(() => {
-        // Offline or Supabase not configured — local data remains authoritative.
-      });
-  }, [mergeRemoteTasks]);
-
-  useEffect(() => {
-    if (!isLoaded || typeof window === 'undefined') return;
-
-    // Initial pull on load.
-    pullRemoteTasks();
-
-    // Periodic poll so a long-lived tab picks up remote changes.
-    const interval = setInterval(pullRemoteTasks, 45000);
-
-    // Re-pull whenever the tab regains focus/visibility — the moment a user
-    // switches back is the highest-value time to catch up on mobile edits.
-    const onFocus = () => pullRemoteTasks();
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') pullRemoteTasks();
-    };
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onVisibility);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, [isLoaded, pullRemoteTasks]);
-
-  // Push local task changes to Supabase (debounced) so the background cron
-  // has an up-to-date picture to reconcile against, and so tasks survive
-  // across devices/browsers even without Google sync.
-  useEffect(() => {
-    if (!isLoaded || typeof window === 'undefined') return;
-    if (tasks.length === 0) return;
-
-    const timeout = setTimeout(() => {
-      fetch('/api/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tasks }),
-      })
-        .then((res) => {
-          if (res.ok) clearPending();
-          else markPendingChange();
-        })
-        .catch(() => {
-          // Offline or Supabase not configured — localStorage still has the
-          // data, but the change hasn't reached Supabase yet. Tracked so
-          // OfflineIndicator can show an honest "N changes queued".
-          markPendingChange();
-        });
-    }, 2000);
-
-    return () => clearTimeout(timeout);
-  }, [tasks, isLoaded]);
-
-  // Retry the queued push the moment connectivity returns, instead of
-  // waiting for the next task edit to trigger the debounced effect above.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const onOnline = () => {
-      fetch('/api/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tasks }),
-      })
-        .then((res) => { if (res.ok) clearPending(); })
-        .catch(() => {});
-    };
-    window.addEventListener('online', onOnline);
-    return () => window.removeEventListener('online', onOnline);
-  }, [tasks]);
 
   useEffect(() => {
     if (!isLoaded || typeof window === 'undefined') return;
@@ -2422,7 +2307,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const applySyncPatch = useCallback((kind: SyncKind, fn: (prev: any[]) => any[]) => {
+    const setters = { businesses: setBusinesses, goals: setGoals, projects: setProjects, tasks: setTasks, scheduleEntries: setScheduleEntries } as Record<SyncKind, (f: (prev: any[]) => any[]) => void>;
+    setters[kind](fn);
+  }, []);
+
   const value = {
+    isLoaded,
+    applySyncPatch,
     businesses,
     goals,
     months,

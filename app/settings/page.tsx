@@ -20,6 +20,8 @@ import { PageTransition } from '@/components/motion/PageTransition';
 import { TrashModal } from '@/components/tasks/TrashModal';
 import { GoogleConnectionCard } from '@/components/integrations/GoogleConnectionCard';
 import { MobileSettingsList } from '@/components/settings/MobileSettingsList';
+import { SyncCard } from '@/components/settings/SyncCard';
+import { useSync } from '@/lib/sync/SyncProvider';
 
 const TIMEZONES = [
   { value: 'Asia/Kolkata', label: 'India (IST - Asia/Kolkata)' },
@@ -58,6 +60,8 @@ function GoogleOAuthCallbackHandler({
 }
 
 export default function SettingsPage() {
+  const sync = useSync();
+  const syncing = sync.status !== 'off' && sync.status !== 'signed-out';
   const {
     settings,
     updateSettings,
@@ -107,6 +111,7 @@ export default function SettingsPage() {
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
+      if (syncing) sync.allowWipe();
       const success = importDataJSON(content);
       if (success) {
         setImportStatus('Data imported successfully!');
@@ -171,6 +176,8 @@ export default function SettingsPage() {
           <span>{savedSettingMsg}</span>
         </div>
       )}
+
+      <SyncCard />
 
       {/* Mobile: native list-style settings */}
       <div className="md:hidden -mx-4 sm:-mx-6">
@@ -461,7 +468,8 @@ export default function SettingsPage() {
 
             <button
               onClick={() => {
-                if (confirm('Delete ALL calendars, goals, projects, tasks and schedule data? This cannot be undone.')) {
+                if (confirm(`Delete ALL calendars, goals, projects, tasks and schedule data? This cannot be undone.${syncing ? ' It will also be deleted from your other signed-in devices.' : ''}`)) {
+                  if (syncing) sync.allowWipe();
                   resetToCleanStart();
                 }
               }}
@@ -483,7 +491,8 @@ export default function SettingsPage() {
 
             <button
               onClick={() => {
-                if (confirm('Reset all data to default seed data?')) {
+                if (confirm(`Reset all data to default seed data?${syncing ? ' This also replaces the data on your other signed-in devices.' : ''}`)) {
+                  if (syncing) sync.allowWipe();
                   resetToDemoData();
                 }
               }}

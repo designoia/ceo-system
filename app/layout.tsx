@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { StoreProvider } from '@/lib/store';
+import { SyncProvider } from '@/lib/sync/SyncProvider';
 import { Header } from '@/components/layout/Header';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileNav } from '@/components/layout/MobileNav';
@@ -61,6 +62,7 @@ export default function RootLayout({
       </head>
       <body className={`${inter.className} min-h-screen bg-background text-foreground antialiased`}>
         <StoreProvider>
+          <SyncProvider>
           <ServiceWorkerRegistration />
           <UpdateBanner />
           <OfflineIndicator />
@@ -95,6 +97,7 @@ export default function RootLayout({
           <SyncLogViewerModal />
           <ToastContainer />
           <ConnectionBanner />
+          </SyncProvider>
         </StoreProvider>
       </body>
     </html>
