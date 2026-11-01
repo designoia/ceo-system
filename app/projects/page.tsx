@@ -62,7 +62,7 @@ export default function ProjectsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
 
   const [name, setName] = useState('');
-  const [businessCode, setBusinessCode] = useState<BusinessCode>('DESIGNOIA');
+  const [businessCode, setBusinessCode] = useState<BusinessCode>('');
   const [parentProjectId, setParentProjectId] = useState<string>('');
   const [description, setDescription] = useState('');
   const [successDefinition, setSuccessDefinition] = useState('');

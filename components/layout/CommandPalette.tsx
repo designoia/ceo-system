@@ -81,7 +81,7 @@ export function CommandPalette() {
         hint: 'Enter',
         icon: <Plus className="h-4 w-4" />,
         action: () => {
-          addTask({ title: query.trim(), businessCode: 'COL', priority: 'P2', status: 'INBOX' });
+          addTask({ title: query.trim(), businessCode: '', priority: 'P2', status: 'INBOX' });
           close();
         },
       });

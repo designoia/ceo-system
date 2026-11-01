@@ -24,19 +24,9 @@ export function detectOverload(todayTasks: Task[], capacityMinutes: number): Ove
   };
 }
 
-const BUSINESS_KEYWORDS: Record<BusinessCode, string[]> = {
-  COL: ['note', 'test', 'student', 'curriculum', 'class', 'institute', 'exam'],
-  DESIGNOIA: ['design', 'client', 'website', 'portfolio', 'proposal', 'brand', 'prorido'],
-  CLIKIXPRESS: ['order', 'shipment', 'inventory', 'supplier', 'warehouse', 'ecommerce', 'gst'],
-  PERSONAL: ['family', 'health', 'home', 'car', 'personal', 'appointment', 'school'],
-};
-
-/** Suggests a business classification from a task title using keyword matching. */
-export function classifyTask(title: string): BusinessCode | null {
-  const lower = title.toLowerCase();
-  for (const [code, keywords] of Object.entries(BUSINESS_KEYWORDS) as [BusinessCode, string[]][]) {
-    if (keywords.some((k) => lower.includes(k))) return code;
-  }
+/** Business classification used to be keyword-based on a fixed set of businesses.
+ *  Calendars are now user-created, so there is nothing safe to guess — callers fall back to "no calendar". */
+export function classifyTask(_title: string): BusinessCode | null {
   return null;
 }
 

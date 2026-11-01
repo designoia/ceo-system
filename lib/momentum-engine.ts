@@ -43,7 +43,8 @@ function isConsecutiveDay(earlierDateStr: string, laterDateStr: string): boolean
  */
 export function calculateMomentum(tasks: Task[], timezone: string = 'Asia/Kolkata'): MomentumStats {
   // 1. Filter legitimate completed tasks (non-deleted, valid completedAt)
-  const qualifyingTasks = tasks.filter(t => t.status === 'DONE' && t.completedAt && !t.isDeleted);
+  // Checklist items (subtasks) don't count as finished tasks — only top-level work does.
+  const qualifyingTasks = tasks.filter(t => t.status === 'DONE' && t.completedAt && !t.isDeleted && !t.parentTaskId);
 
   if (qualifyingTasks.length === 0) {
     return {

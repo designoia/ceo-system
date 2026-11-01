@@ -45,13 +45,6 @@ import {
   INITIAL_SCHEDULE_BLOCKS,
   INITIAL_SETTINGS,
   INITIAL_ACTIVITY_LOGS,
-  INITIAL_SCHEDULE_ENTRIES,
-  INITIAL_SCHEDULE_DAY_REVIEWS,
-  INITIAL_GOOGLE_CONNECTION,
-  INITIAL_TASK_LIST_MAPPINGS,
-  INITIAL_GOOGLE_TASK_MAPPINGS,
-  INITIAL_GOOGLE_CALENDAR_MAPPINGS,
-  INITIAL_GOOGLE_SYNC_LOGS,
 } from './seed-data';
 import { 
   getTodayDateString, 
@@ -90,6 +83,8 @@ const STORAGE_KEYS = {
   GOOGLE_CALENDAR_MAPPINGS: 'ceo_os_google_cmap_v2',
   GOOGLE_SYNC_LOGS: 'ceo_os_google_logs_v2',
 };
+
+const CLEAN_START_FLAG = 'ceo_os_clean_start_v1';
 
 interface StoreContextType {
   businesses: Business[];
@@ -198,6 +193,11 @@ interface StoreContextType {
   updateTask: (taskId: string, updates: Partial<Task>) => void;
   deleteTask: (taskId: string) => void;
   addSubtask: (parentTaskId: string, title: string) => Task;
+  rescheduleTask: (taskId: string, date: string | null) => void;
+  clearAllTasks: () => void;
+  addBusiness: (name: string, color: string) => Business;
+  updateBusiness: (code: string, updates: Partial<Pick<Business, 'name' | 'color'>>) => void;
+  deleteBusiness: (code: string) => void;
   addProject: (project: Omit<Project, 'id' | 'createdAt'>) => Project;
   updateProject: (projectId: string, updates: Partial<Project>) => void;
   deleteProject: (projectId: string) => void;
@@ -297,14 +297,14 @@ interface StoreContextType {
 const StoreContext = createContext<StoreContextType | null>(null);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [businesses, setBusinesses] = useState<Business[]>(INITIAL_BUSINESSES);
-  const [goals, setGoals] = useState<Goal[]>(INITIAL_GOALS);
-  const [months, setMonths] = useState<StrategicMonth[]>(INITIAL_STRATEGIC_MONTHS);
-  const [projects, setProjects] = useState<Project[]>(INITIAL_PROJECTS);
-  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [months, setMonths] = useState<StrategicMonth[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [taskLogs, setTaskLogs] = useState<TaskLog[]>([]);
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(INITIAL_ACTIVITY_LOGS);
-  const [scheduleBlocks, setScheduleBlocks] = useState<ScheduleBlock[]>(INITIAL_SCHEDULE_BLOCKS);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [scheduleBlocks, setScheduleBlocks] = useState<ScheduleBlock[]>([]);
   const [dailyCheckins, setDailyCheckins] = useState<DailyCheckin[]>([]);
   const [weeklyReviews, setWeeklyReviews] = useState<WeeklyReview[]>([]);
   const [monthlyReviews, setMonthlyReviews] = useState<MonthlyReview[]>([]);
@@ -312,18 +312,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Google Integration State
   const [googleConnection, setGoogleConnection] = useState<GoogleConnection | null>(() => {
-    if (typeof window === 'undefined') return INITIAL_GOOGLE_CONNECTION;
+    if (typeof window === 'undefined') return null;
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.GOOGLE_CONNECTION);
-      return stored ? JSON.parse(stored) : INITIAL_GOOGLE_CONNECTION;
+      if (!stored) return null;
+      const conn = JSON.parse(stored) as GoogleConnection;
+      return conn.id === 'conn-demo-01' ? null : conn; // drop the old fake demo connection
     } catch {
-      return INITIAL_GOOGLE_CONNECTION;
+      return null;
     }
   });
-  const [taskListMappings, setTaskListMappings] = useState<GoogleTaskListMapping[]>(INITIAL_TASK_LIST_MAPPINGS);
-  const [googleTaskMappings, setGoogleTaskMappings] = useState<GoogleTaskMapping[]>(INITIAL_GOOGLE_TASK_MAPPINGS);
-  const [googleCalendarMappings, setGoogleCalendarMappings] = useState<GoogleCalendarMapping[]>(INITIAL_GOOGLE_CALENDAR_MAPPINGS);
-  const [googleSyncLogs, setGoogleSyncLogs] = useState<GoogleSyncLog[]>(INITIAL_GOOGLE_SYNC_LOGS);
+  const [taskListMappings, setTaskListMappings] = useState<GoogleTaskListMapping[]>([]);
+  const [googleTaskMappings, setGoogleTaskMappings] = useState<GoogleTaskMapping[]>([]);
+  const [googleCalendarMappings, setGoogleCalendarMappings] = useState<GoogleCalendarMapping[]>([]);
+  const [googleSyncLogs, setGoogleSyncLogs] = useState<GoogleSyncLog[]>([]);
   const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
   const [syncConflicts, setSyncConflicts] = useState<SyncConflict[]>([]);
   const [taskToSchedule, setTaskToSchedule] = useState<Task | null>(null);
@@ -333,9 +335,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [isSyncLogViewerOpen, setIsSyncLogViewerOpen] = useState(false);
 
   // Phase 5 Daily Scheduler State
-  const [scheduleEntries, setScheduleEntries] = useState<ScheduleEntry[]>(INITIAL_SCHEDULE_ENTRIES);
-  const [scheduleDayReviews, setScheduleDayReviews] = useState<ScheduleDayReview[]>(INITIAL_SCHEDULE_DAY_REVIEWS);
-  const [selectedScheduleDate, setSelectedScheduleDate] = useState<string>('2026-09-07');
+  const [scheduleEntries, setScheduleEntries] = useState<ScheduleEntry[]>([]);
+  const [scheduleDayReviews, setScheduleDayReviews] = useState<ScheduleDayReview[]>([]);
+  const [selectedScheduleDate, setSelectedScheduleDate] = useState<string>(() => getTodayDateString('Asia/Kolkata'));
   const [isPlanTomorrowOpen, setPlanTomorrowOpen] = useState(false);
   const [isScheduleReviewOpen, setScheduleReviewOpen] = useState(false);
   const [isAddBlockModalOpen, setIsAddBlockModalOpen] = useState(false);
@@ -395,6 +397,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (typeof window === 'undefined') return;
 
     try {
+      // One-time clean start: older builds shipped demo businesses/goals/projects/tasks.
+      // Wipe those once so everyone starts empty; settings and Google connection are kept.
+      if (!localStorage.getItem(CLEAN_START_FLAG)) {
+        const keep = new Set([STORAGE_KEYS.SETTINGS, STORAGE_KEYS.GOOGLE_CONNECTION]); // demo connection is dropped by its initializer
+        Object.values(STORAGE_KEYS).forEach((k) => {
+          if (!keep.has(k)) localStorage.removeItem(k);
+        });
+        localStorage.removeItem('tk-tracker-v1');
+        localStorage.removeItem('tk-view');
+        localStorage.setItem(CLEAN_START_FLAG, '1');
+      }
+
       const storedBusinesses = localStorage.getItem(STORAGE_KEYS.BUSINESSES);
       if (storedBusinesses) setBusinesses(JSON.parse(storedBusinesses));
 
@@ -408,7 +422,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (storedProjects) setProjects(JSON.parse(storedProjects));
 
       const storedTasks = localStorage.getItem(STORAGE_KEYS.TASKS);
-      let loadedTasks = INITIAL_TASKS;
+      let loadedTasks: Task[] = [];
       if (storedTasks) {
         loadedTasks = JSON.parse(storedTasks);
       }
@@ -476,7 +490,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (storedEntries) {
         setScheduleEntries(JSON.parse(storedEntries));
       } else {
-        setScheduleEntries(INITIAL_SCHEDULE_ENTRIES);
+        setScheduleEntries([]);
       }
 
       // Load Phase 5 Schedule Day Reviews
@@ -484,35 +498,35 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (storedSchedReviews) {
         setScheduleDayReviews(JSON.parse(storedSchedReviews));
       } else {
-        setScheduleDayReviews(INITIAL_SCHEDULE_DAY_REVIEWS);
+        setScheduleDayReviews([]);
       }
 
       const storedGoogleLists = localStorage.getItem(STORAGE_KEYS.GOOGLE_TASK_LIST_MAPPINGS);
       if (storedGoogleLists) {
         setTaskListMappings(JSON.parse(storedGoogleLists));
       } else {
-        setTaskListMappings(INITIAL_TASK_LIST_MAPPINGS);
+        setTaskListMappings([]);
       }
 
       const storedGoogleTMaps = localStorage.getItem(STORAGE_KEYS.GOOGLE_TASK_MAPPINGS);
       if (storedGoogleTMaps) {
         setGoogleTaskMappings(JSON.parse(storedGoogleTMaps));
       } else {
-        setGoogleTaskMappings(INITIAL_GOOGLE_TASK_MAPPINGS);
+        setGoogleTaskMappings([]);
       }
 
       const storedGoogleCMaps = localStorage.getItem(STORAGE_KEYS.GOOGLE_CALENDAR_MAPPINGS);
       if (storedGoogleCMaps) {
         setGoogleCalendarMappings(JSON.parse(storedGoogleCMaps));
       } else {
-        setGoogleCalendarMappings(INITIAL_GOOGLE_CALENDAR_MAPPINGS);
+        setGoogleCalendarMappings([]);
       }
 
       const storedGoogleLogs = localStorage.getItem(STORAGE_KEYS.GOOGLE_SYNC_LOGS);
       if (storedGoogleLogs) {
         setGoogleSyncLogs(JSON.parse(storedGoogleLogs));
       } else {
-        setGoogleSyncLogs(INITIAL_GOOGLE_SYNC_LOGS);
+        setGoogleSyncLogs([]);
       }
 
       setSelectedScheduleDate(localTodayStr);
@@ -557,7 +571,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           setMustWinCarryForwardTask(prevMustWin);
         }
 
-        if (diffDays >= 2) {
+        // Nothing to come back to on an empty workspace, so skip the welcome-back popup.
+        if (diffDays >= 2 && loadedTasks.length > 0) {
           const nextAction = prevMustWin || loadedTasks.find(t => t.status === 'TODAY' || t.status === 'OVERDUE') || null;
           setWelcomeBackInfo({
             isReturning: true,
@@ -1187,7 +1202,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       code: `T-${count.toString().padStart(3, '0')}`,
       title: taskData.title,
-      businessCode: taskData.businessCode || 'DESIGNOIA',
+      businessCode: taskData.businessCode ?? '',
       priority: taskData.priority || 'P2',
       status: taskData.status || 'TODAY',
       estimatedMinutes: taskData.estimatedMinutes || 45,
@@ -1195,6 +1210,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       projectId: taskData.projectId,
       parentTaskId: taskData.parentTaskId,
       scheduledDate: taskData.scheduledDate,
+      scheduledTime: taskData.scheduledTime,
+      dueDate: taskData.dueDate,
+      quadrant: taskData.quadrant,
+      delegation: taskData.delegation,
+      isDecision: taskData.isDecision,
       notes: taskData.notes,
       blockReason: taskData.blockReason,
       isDeleted: false,
@@ -1212,6 +1232,70 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     );
   }, []);
 
+  // Moves a task to another day (calendar drag-and-drop). null = unschedule.
+  const rescheduleTask = useCallback((taskId: string, date: string | null) => {
+    const today = getTodayDateString(settings.timezone || 'Asia/Kolkata');
+    const dayMs = 86_400_000;
+    setTasks(prev =>
+      prev.map(t => {
+        if (t.id !== taskId) return t;
+        const now = new Date().toISOString();
+        const next: Task = { ...t, scheduledDate: date ?? undefined, updatedAt: now };
+        // A due date earlier than the new plan date would flip the task straight back to OVERDUE.
+        if (date && t.dueDate && t.dueDate < date) next.dueDate = undefined;
+        if (t.status !== 'DONE' && t.status !== 'BLOCKED') {
+          let status: TaskStatus = t.status;
+          if (!date) status = 'INBOX';
+          else if (date === today) status = 'TODAY';
+          else if (date > today) {
+            const ahead = Math.round((Date.parse(date) - Date.parse(today)) / dayMs);
+            status = ahead <= 7 ? 'THIS_WEEK' : 'NEXT';
+          }
+          if (status !== t.status) {
+            next.previousStatus = t.status;
+            next.status = status;
+            next.lastStatusChangeAt = now;
+            next.overdueAt = undefined;
+          }
+        }
+        return next;
+      })
+    );
+  }, [settings.timezone]);
+
+  const clearAllTasks = useCallback(() => {
+    setTasks([]);
+    setTaskLogs([]);
+  }, []);
+
+  const addBusiness = useCallback((name: string, color: string): Business => {
+    const clean = name.trim();
+    const base = clean.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) || 'CAL';
+    const biz: Business = {
+      id: `biz-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      code: `${base}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`,
+      name: clean,
+      description: '',
+      color,
+      iconName: 'Folder',
+      isActive: true,
+    };
+    setBusinesses(prev => [...prev, biz]);
+    return biz;
+  }, []);
+
+  const updateBusiness = useCallback((code: string, updates: Partial<Pick<Business, 'name' | 'color'>>) => {
+    setBusinesses(prev => prev.map(b => (b.code === code ? { ...b, ...updates } : b)));
+  }, []);
+
+  // Deleting a calendar keeps its tasks — they just become "no calendar".
+  const deleteBusiness = useCallback((code: string) => {
+    setBusinesses(prev => prev.filter(b => b.code !== code));
+    setTasks(prev => prev.map(t => (t.businessCode === code ? { ...t, businessCode: '' } : t)));
+    setProjects(prev => prev.map(p => (p.businessCode === code ? { ...p, businessCode: '' } : p)));
+    setGoals(prev => prev.map(g => (g.businessCode === code ? { ...g, businessCode: '' } : g)));
+  }, []);
+
   const addSubtask = useCallback((parentTaskId: string, title: string) => {
     const parent = tasks.find(t => t.id === parentTaskId);
     const count = tasks.length + 1;
@@ -1219,7 +1303,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       id: `sub-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       code: `T-${count.toString().padStart(3, '0')}`,
       title,
-      businessCode: parent?.businessCode || 'DESIGNOIA',
+      businessCode: parent?.businessCode ?? '',
       priority: parent?.priority || 'P2',
       status: 'TODAY',
       estimatedMinutes: 15,
@@ -2243,45 +2327,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setSettings(INITIAL_SETTINGS);
   }, []);
 
-  // Clears all demo/seed projects, tasks, and schedule data down to a
-  // minimal 3-project structure (School / COL / Prorido). Goals and the
-  // 5-year strategic plan are left untouched.
+  // Wipes everything — calendars, goals, projects, tasks, schedule and logs — so you can
+  // build your own from scratch. Settings and Google connection are kept.
   const resetToCleanStart = useCallback(() => {
-    const now = new Date().toISOString();
-    const cleanProjects: Project[] = [
-      {
-        id: 'proj-school',
-        name: 'School',
-        businessCode: 'PERSONAL',
-        description: 'Personal schooling — notes, tests, printouts, admin.',
-        successDefinition: 'All school tasks tracked and completed on time.',
-        status: 'ACTIVE',
-        priority: 'P2',
-        createdAt: now,
-      },
-      {
-        id: 'proj-col',
-        name: 'COL',
-        businessCode: 'COL',
-        description: 'Circle of Learning — institutional business operations.',
-        successDefinition: 'COL business tasks tracked and executed.',
-        status: 'ACTIVE',
-        priority: 'P1',
-        createdAt: now,
-      },
-      {
-        id: 'proj-prorido',
-        name: 'Prorido',
-        businessCode: 'DESIGNOIA',
-        description: 'Prorido — Designoia client project.',
-        successDefinition: 'Prorido deliverables tracked and shipped.',
-        status: 'ACTIVE',
-        priority: 'P1',
-        createdAt: now,
-      },
-    ];
-
-    setProjects(cleanProjects);
+    setBusinesses([]);
+    setGoals([]);
+    setMonths([]);
+    setProjects([]);
     setTasks([]);
     setTaskLogs([]);
     setActivityLogs([]);
@@ -2478,6 +2530,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     updateTask,
     deleteTask,
     addSubtask,
+    rescheduleTask,
+    clearAllTasks,
+    addBusiness,
+    updateBusiness,
+    deleteBusiness,
     addProject,
     updateProject,
     deleteProject,

@@ -453,15 +453,15 @@ export default function SettingsPage() {
           {/* CLEAN START */}
           <div className="rounded-3xl border border-amber-500/20 bg-amber-500/5 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h4 className="text-sm font-bold text-foreground">Clean Start (School / COL / Prorido)</h4>
+              <h4 className="text-sm font-bold text-foreground">Clean Start — wipe everything</h4>
               <p className="text-xs text-muted-foreground">
-                Clears all projects, tasks, and schedule data down to 3 projects: School, COL, Prorido. Goals and the 5-year plan are kept.
+                Deletes all calendars, goals, projects, tasks and schedule data so you can build your own from scratch. Your settings are kept.
               </p>
             </div>
 
             <button
               onClick={() => {
-                if (confirm('Clear all tasks, projects, and schedule data? This keeps your Goals untouched. This cannot be undone.')) {
+                if (confirm('Delete ALL calendars, goals, projects, tasks and schedule data? This cannot be undone.')) {
                   resetToCleanStart();
                 }
               }}

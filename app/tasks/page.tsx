@@ -1,290 +1,150 @@
 'use client';
 
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  CheckSquare,
-  Plus,
-  Target,
-  CheckCircle2,
-  AlertCircle,
-  Trash2,
-  Inbox,
-  Calendar,
-  Layers,
-  Clock,
-  HelpCircle,
-  Users,
-} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { MoreHorizontal, Settings2, Trash2, XCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useStore } from '@/lib/store';
-import { useTaskLifecycle } from '@/lib/hooks/useTaskLifecycle';
-import { Task, TaskStatus, BusinessCode } from '@/lib/types';
+import { useCalendarFilter } from '@/lib/hooks/useCalendarFilter';
+import { Task } from '@/lib/types';
+import { topLevel } from '@/lib/work';
 import { PageTransition } from '@/components/motion/PageTransition';
-import { TaskRow } from '@/components/tasks/TaskRow';
-import { MobileTaskRow } from '@/components/tasks/MobileTaskRow';
-import { TaskActionsSheet } from '@/components/tasks/TaskActionsSheet';
-import { TaskDrawer } from '@/components/tasks/TaskDrawer';
-import { RestoreTaskModal } from '@/components/tasks/RestoreTaskModal';
-import { DeleteConfirmationModal } from '@/components/tasks/DeleteConfirmationModal';
 import { TrashModal } from '@/components/tasks/TrashModal';
+import { CalendarChips, ManageCalendarsSheet } from '@/components/work/CalendarChips';
+import { QuickAddBar, TaskRow } from '@/components/work/TaskParts';
+import { TaskSheet } from '@/components/work/TaskSheet';
 
-type TabKey = TaskStatus | 'ALL' | 'DECISIONS' | 'WAITING';
-
-const STATUS_COLUMNS: { key: TabKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { key: 'TODAY', label: 'Today', icon: Target },
-  { key: 'OVERDUE', label: 'Overdue', icon: AlertCircle },
-  { key: 'THIS_WEEK', label: 'This Week', icon: Calendar },
-  { key: 'NEXT', label: 'Next Up', icon: Layers },
-  { key: 'INBOX', label: 'Inbox', icon: Inbox },
-  { key: 'DECISIONS', label: 'Decisions', icon: HelpCircle },
-  { key: 'WAITING', label: 'Waiting', icon: Users },
-  { key: 'BLOCKED', label: 'Blocked', icon: AlertCircle },
-  { key: 'BACKLOG', label: 'Backlog', icon: Clock },
-  { key: 'DONE', label: 'Done', icon: CheckCircle2 },
-];
+function Section({
+  title,
+  tone,
+  tasks,
+  onOpen,
+  pull,
+  hint,
+}: {
+  title: string;
+  tone?: 'red' | 'muted';
+  tasks: Task[];
+  onOpen: (t: Task) => void;
+  pull?: boolean;
+  hint?: string;
+}) {
+  if (tasks.length === 0) return null;
+  return (
+    <section>
+      <div className="mb-2 flex items-baseline gap-2 px-1">
+        <h2 className={cn('text-[11px] font-bold uppercase tracking-[0.12em]', tone === 'red' ? 'text-red-500' : 'text-muted-foreground')}>{title}</h2>
+        <span className="text-[11px] text-muted-foreground">{tasks.length}</span>
+        {hint && <span className="ml-auto text-[11px] text-muted-foreground">{hint}</span>}
+      </div>
+      <div className="space-y-2">
+        {tasks.map((t) => (
+          <TaskRow key={t.id} task={t} onOpen={onOpen} expandable pullToToday={pull} />
+        ))}
+      </div>
+    </section>
+  );
+}
 
 export default function TasksPage() {
-  const {
-    tasks,
-    deletedTasks,
-    projects,
-    businesses,
-    completeTask,
-    undoTaskCompletion,
-    openScheduleModal,
-    getSubtaskProgress,
-    setQuickAddOpen,
-  } = useStore();
+  const { tasks, deletedTasks, clearAllTasks } = useStore();
+  const [filter, setFilter] = useCalendarFilter();
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [menu, setMenu] = useState(false);
+  const [manage, setManage] = useState(false);
+  const [trash, setTrash] = useState(false);
+  const [showDone, setShowDone] = useState(false);
 
-  const { deleteWithUndo } = useTaskLifecycle();
+  const groups = useMemo(() => {
+    const list = topLevel(tasks).filter((t) => filter === 'ALL' || t.businessCode === filter);
+    const by = (...s: Task['status'][]) => list.filter((t) => s.includes(t.status));
+    const date = (t: Task) => t.scheduledDate || t.dueDate || '9999';
+    return {
+      total: list.length,
+      overdue: by('OVERDUE').sort((a, b) => date(a).localeCompare(date(b))),
+      today: by('TODAY'),
+      inbox: by('INBOX', 'BACKLOG'),
+      upcoming: by('NEXT', 'THIS_WEEK').sort((a, b) => date(a).localeCompare(date(b))),
+      blocked: by('BLOCKED'),
+      done: by('DONE').sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? '')),
+    };
+  }, [tasks, filter]);
 
-  const [activeTab, setActiveTab] = useState<TabKey>('TODAY');
-  const [filterBusiness, setFilterBusiness] = useState<BusinessCode | 'ALL'>('ALL');
-  const [sortBy, setSortBy] = useState<'PRIORITY' | 'TIME' | 'CREATED'>('PRIORITY');
-  const [openTask, setOpenTask] = useState<Task | null>(null);
-  const [actionsTask, setActionsTask] = useState<Task | null>(null);
-
-  const [taskToRestore, setTaskToRestore] = useState<Task | null>(null);
-  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
-  const [isTrashOpen, setIsTrashOpen] = useState(false);
-
-  const filteredTasks = tasks
-    .filter((t) => {
-      if (t.isDeleted) return false;
-      if (t.parentTaskId) return false;
-      let matchesTab: boolean;
-      if (activeTab === 'ALL') matchesTab = true;
-      else if (activeTab === 'DECISIONS') matchesTab = Boolean(t.isDecision) && t.status !== 'DONE';
-      else if (activeTab === 'WAITING') matchesTab = t.delegation === 'WAITING' && t.status !== 'DONE';
-      else matchesTab = t.status === activeTab;
-      const matchesBiz = filterBusiness === 'ALL' ? true : t.businessCode === filterBusiness;
-      return matchesTab && matchesBiz;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'PRIORITY') {
-        const pOrder: Record<string, number> = { P1: 1, P2: 2, P3: 3 };
-        return (pOrder[a.priority] || 2) - (pOrder[b.priority] || 2);
-      }
-      if (sortBy === 'TIME') {
-        return (a.estimatedMinutes || 45) - (b.estimatedMinutes || 45);
-      }
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
+  const left = groups.overdue.length + groups.today.length;
+  const open = (t: Task) => setOpenId(t.id);
 
   return (
-    <PageTransition className="space-y-6">
-      <RestoreTaskModal
-        task={taskToRestore}
-        isOpen={!!taskToRestore}
-        onClose={() => setTaskToRestore(null)}
-      />
-
-      <DeleteConfirmationModal
-        task={taskToDelete}
-        isOpen={!!taskToDelete}
-        onClose={() => setTaskToDelete(null)}
-        onConfirmSuccess={() => {
-          if (taskToDelete) deleteWithUndo(taskToDelete);
-        }}
-      />
-
-      <TrashModal isOpen={isTrashOpen} onClose={() => setIsTrashOpen(false)} />
-
-      <TaskDrawer
-        task={openTask}
-        onClose={() => setOpenTask(null)}
-        onSchedule={(t) => openScheduleModal(t)}
-      />
-
-      <TaskActionsSheet
-        task={actionsTask}
-        onClose={() => setActionsTask(null)}
-        onSchedule={(t) => openScheduleModal(t)}
-        onOpenDetail={(t) => setOpenTask(t)}
-      />
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <PageTransition className="space-y-4">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Execution Pipeline
-          </div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Tasks</h2>
-        </div>
-
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          {deletedTasks.length > 0 && (
-            <button
-              onClick={() => setIsTrashOpen(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              <span>Trash ({deletedTasks.length})</span>
-            </button>
-          )}
-
-          <button
-            onClick={() => setQuickAddOpen(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>Add Task</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
-        <div className="flex flex-wrap items-center gap-1">
-          {STATUS_COLUMNS.map((col) => {
-            const count = tasks.filter((t) => {
-              if (t.isDeleted || t.parentTaskId) return false;
-              if (col.key === 'DECISIONS') return Boolean(t.isDecision) && t.status !== 'DONE';
-              if (col.key === 'WAITING') return t.delegation === 'WAITING' && t.status !== 'DONE';
-              return t.status === col.key;
-            }).length;
-            const Icon = col.icon;
-            const isActive = activeTab === col.key;
-
-            return (
-              <button
-                key={col.key}
-                onClick={() => setActiveTab(col.key)}
-                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
-                  isActive ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Icon className="h-3 w-3" />
-                <span>{col.label}</span>
-                <span className="text-[10px] font-mono text-muted-foreground/70">{count}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center gap-2 self-start md:self-auto">
-          <select
-            value={filterBusiness}
-            onChange={(e) => setFilterBusiness(e.target.value as BusinessCode | 'ALL')}
-            className="rounded-md border border-border bg-transparent px-2.5 py-1 text-[11px] text-muted-foreground focus:outline-none"
-          >
-            <option value="ALL">All Focus Areas</option>
-            {businesses.map((b) => (
-              <option key={b.code} value={b.code}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as 'PRIORITY' | 'TIME' | 'CREATED')}
-            className="rounded-md border border-border bg-transparent px-2.5 py-1 text-[11px] text-muted-foreground focus:outline-none"
-          >
-            <option value="PRIORITY">Priority</option>
-            <option value="TIME">Duration</option>
-            <option value="CREATED">Newest</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Task list */}
-      {filteredTasks.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.2 }}
-          className="rounded-lg border border-dashed border-border p-10 text-center"
-        >
-          <CheckSquare className="h-7 w-7 text-muted-foreground mx-auto mb-2 opacity-40" />
-          <h4 className="text-sm font-semibold text-foreground">
-            {activeTab === 'DONE'
-              ? 'No completed tasks yet'
-              : activeTab === 'OVERDUE'
-              ? "You're clear — no overdue tasks"
-              : `Nothing in "${activeTab}"`}
-          </h4>
-          <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-            {activeTab === 'TODAY'
-              ? 'Plan 1-3 meaningful tasks for today to build continuous momentum.'
-              : 'Add concrete actions to keep your projects moving forward.'}
+          <h1 className="text-2xl font-bold tracking-tight">Tasks</h1>
+          <p className="text-sm text-muted-foreground">
+            {groups.total === 0 ? 'Nothing here yet' : left === 0 ? 'All clear for today' : `${left} left for today`}
           </p>
-          <button
-            onClick={() => setQuickAddOpen(true)}
-            className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary/10 border border-primary/25 px-3.5 py-2 text-xs font-semibold text-primary hover:bg-primary/15 transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>Quick Add</span>
+        </div>
+        <div className="relative">
+          <button onClick={() => setMenu((v) => !v)} aria-label="More" className="flex h-11 w-11 items-center justify-center rounded-full border border-border">
+            <MoreHorizontal className="h-5 w-5" />
           </button>
-        </motion.div>
-      ) : (
-        <div className="rounded-lg border border-border overflow-hidden divide-y divide-border">
-          <AnimatePresence initial={false}>
-            {filteredTasks.map((task) => {
-              const project = projects.find((p) => p.id === task.projectId);
-              const biz = businesses.find((b) => b.code === task.businessCode);
-              const subProgress = getSubtaskProgress(task.id);
-
-              return (
-                <motion.div
-                  key={task.id}
-                  layout
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.18 }}
+          {menu && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setMenu(false)} />
+              <div className="surface-2 absolute right-0 z-40 mt-2 w-60 overflow-hidden rounded-xl border border-border shadow-xl">
+                <button onClick={() => { setMenu(false); setManage(true); }} className="flex min-h-[48px] w-full items-center gap-3 px-4 text-left text-sm hover:bg-secondary">
+                  <Settings2 className="h-4 w-4" /> Manage calendars
+                </button>
+                <button onClick={() => { setMenu(false); setTrash(true); }} className="flex min-h-[48px] w-full items-center gap-3 px-4 text-left text-sm hover:bg-secondary">
+                  <Trash2 className="h-4 w-4" /> Recently deleted ({deletedTasks.length})
+                </button>
+                <button
+                  onClick={() => {
+                    setMenu(false);
+                    if (confirm('Delete ALL tasks? Your calendars, goals and projects stay.')) clearAllTasks();
+                  }}
+                  className="flex min-h-[48px] w-full items-center gap-3 border-t border-border px-4 text-left text-sm text-red-500 hover:bg-secondary"
                 >
-                  <div className="hidden md:block">
-                    <TaskRow
-                      task={task}
-                      project={project}
-                      business={biz}
-                      subtaskProgress={subProgress}
-                      onOpen={(t) => setOpenTask(t)}
-                      onToggleComplete={(t) =>
-                        t.status === 'DONE' ? undoTaskCompletion(t.id) : completeTask(t.id, t.estimatedMinutes)
-                      }
-                    />
-                  </div>
-                  <div className="md:hidden">
-                    <MobileTaskRow
-                      task={task}
-                      project={project}
-                      business={biz}
-                      onOpen={(t) => setOpenTask(t)}
-                      onComplete={(t) =>
-                        t.status === 'DONE' ? undoTaskCompletion(t.id) : completeTask(t.id, t.estimatedMinutes)
-                      }
-                      onReschedule={(t) => openScheduleModal(t)}
-                      onLongPress={(t) => setActionsTask(t)}
-                    />
-                  </div>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
+                  <XCircle className="h-4 w-4" /> Clear all tasks
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <CalendarChips value={filter} onChange={setFilter} />
+      <QuickAddBar businessCode={filter === 'ALL' ? '' : filter} placeholder="Add a task — press Enter" />
+
+      {groups.total === 0 && (
+        <div className="rounded-2xl border border-dashed border-border px-6 py-12 text-center">
+          <p className="text-[15px] font-semibold">Start by typing a task above.</p>
+          <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground">New tasks land in <b>Inbox</b>. Tap <b>Today</b> beside one to do it today, or drag it onto a day in Calendar.</p>
         </div>
       )}
+
+      <Section title="Overdue" tone="red" tasks={groups.overdue} onOpen={open} />
+      <Section title="Today" tasks={groups.today} onOpen={open} />
+      <Section title="Inbox" tasks={groups.inbox} onOpen={open} pull />
+      <Section title="Upcoming" tasks={groups.upcoming} onOpen={open} />
+      <Section title="Blocked" tasks={groups.blocked} onOpen={open} />
+
+      {groups.done.length > 0 && (
+        <section>
+          <button onClick={() => setShowDone((v) => !v)} className="mb-2 flex min-h-[40px] items-center gap-2 px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+            Done · {groups.done.length}
+            <span className="font-medium normal-case tracking-normal">{showDone ? 'Hide' : 'Show'}</span>
+          </button>
+          {showDone && (
+            <div className="space-y-2">
+              {groups.done.slice(0, 30).map((t) => (
+                <TaskRow key={t.id} task={t} onOpen={open} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      <TaskSheet taskId={openId} onClose={() => setOpenId(null)} />
+      <ManageCalendarsSheet open={manage} onClose={() => setManage(false)} />
+      <TrashModal isOpen={trash} onClose={() => setTrash(false)} />
     </PageTransition>
   );
 }

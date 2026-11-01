@@ -14,19 +14,19 @@ import {
   Settings,
   Sparkles,
   Bot,
-  LayoutGrid
+  CalendarDays
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/lib/store';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Home', icon: Home },
+  { href: '/tasks', label: 'Tasks', icon: CheckSquare },
+  { href: '/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/goals', label: 'Goals', icon: Target },
   { href: '/projects', label: 'Projects', icon: FolderKanban },
-  { href: '/tasks', label: 'Tasks', icon: CheckSquare },
   { href: '/schedule', label: 'Schedule', icon: Clock },
   { href: '/reviews', label: 'Reviews', icon: BarChart3 },
-  { href: '/tracker', label: 'Task Tracker', icon: LayoutGrid },
   { href: '/ai', label: 'AI Command Center', icon: Bot },
 ];
 
