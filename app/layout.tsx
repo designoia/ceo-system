@@ -6,6 +6,7 @@ import { SyncProvider } from '@/lib/sync/SyncProvider';
 import { Header } from '@/components/layout/Header';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MobileNav } from '@/components/layout/MobileNav';
+import { ClientOnly } from '@/components/layout/ClientOnly';
 import { QuickAddModal } from '@/components/layout/QuickAddModal';
 import { CommandPalette } from '@/components/layout/CommandPalette';
 import { FocusModeModal } from '@/components/focus/FocusModeModal';
@@ -76,7 +77,7 @@ export default function RootLayout({
             <div className="flex flex-1 flex-col overflow-x-hidden pb-20 md:pb-6">
               <Header />
               <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-6xl w-full mx-auto">
-                {children}
+                <ClientOnly>{children}</ClientOnly>
               </main>
             </div>
           </div>

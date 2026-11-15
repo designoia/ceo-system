@@ -3,20 +3,19 @@
 import React, { useState } from 'react';
 import { Check, ChevronDown, ChevronRight, ListChecks, Plus } from 'lucide-react';
 import { addDays, format, parseISO } from 'date-fns';
-import { cn, getTodayDateString } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { useStore } from '@/lib/store';
 import { Task } from '@/lib/types';
 import { NO_CAL_COLOR, statusForDate, taskDay } from '@/lib/work';
+import { useToday } from '@/lib/hooks/useToday';
+import { StatusSelect } from './StatusSelect';
 
 export function useCalendarColor() {
   const { businesses } = useStore();
   return (code: string) => businesses.find((b) => b.code === code)?.color ?? NO_CAL_COLOR;
 }
 
-export function useToday() {
-  const { settings } = useStore();
-  return getTodayDateString(settings.timezone || 'Asia/Kolkata');
-}
+export { useToday };
 
 /** Round tick box with a 44px tap target. */
 export function CheckBox({ checked, onToggle, color = '#6366f1', label }: { checked: boolean; onToggle: () => void; color?: string; label?: string }) {
@@ -108,17 +107,18 @@ export function TaskRow({
   onOpen,
   showCalendar = true,
   expandable = false,
-  pullToToday = false,
+  withStatus = false,
   compact = false,
 }: {
   task: Task;
   onOpen: (t: Task) => void;
   showCalendar?: boolean;
   expandable?: boolean;
-  pullToToday?: boolean;
+  /** Show the Not done / Done / Pending / Reschedule dropdown under the title. */
+  withStatus?: boolean;
   compact?: boolean;
 }) {
-  const { tasks, businesses, rescheduleTask } = useStore();
+  const { tasks, businesses } = useStore();
   const toggle = useToggleTask();
   const today = useToday();
   const [open, setOpen] = useState(false);
@@ -133,34 +133,33 @@ export function TaskRow({
     <div className={cn('rounded-xl border border-border surface-1', done && 'opacity-60')}>
       <div className={cn('flex items-center gap-3 px-3.5', compact ? 'min-h-[44px]' : 'min-h-[56px] py-1.5')}>
         <CheckBox checked={done} onToggle={() => toggle(task)} color={color(task.businessCode)} />
-        <button onClick={() => onOpen(task)} className="min-w-0 flex-1 py-1.5 text-left">
+        <div className="min-w-0 flex-1 py-1.5">
+          <button onClick={() => onOpen(task)} className="block w-full text-left">
           <div className={cn('text-[15px] font-medium leading-snug', done && 'line-through')}>{task.title}</div>
-          {!compact && (showCalendar && biz || label || subs.length > 0) && (
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground">
-              {showCalendar && biz && (
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full" style={{ background: biz.color }} />
-                  {biz.name}
-                </span>
-              )}
-              {label && <span className={cn(label.late && !done && 'font-semibold text-red-500')}>{label.text}</span>}
-              {subs.length > 0 && (
-                <span className="flex items-center gap-1">
-                  <ListChecks className="h-3 w-3" />
-                  {subsDone}/{subs.length}
-                </span>
-              )}
+            {!compact && (showCalendar && biz || label || subs.length > 0) && (
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground">
+                {showCalendar && biz && (
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full" style={{ background: biz.color }} />
+                    {biz.name}
+                  </span>
+                )}
+                {label && <span className={cn(label.late && !done && 'font-semibold text-red-500')}>{label.text}</span>}
+                {subs.length > 0 && (
+                  <span className="flex items-center gap-1">
+                    <ListChecks className="h-3 w-3" />
+                    {subsDone}/{subs.length}
+                  </span>
+                )}
+              </div>
+            )}
+          </button>
+          {withStatus && (
+            <div className="mt-1.5">
+              <StatusSelect task={task} align="left" />
             </div>
           )}
-        </button>
-        {pullToToday && !done && (
-          <button
-            onClick={() => rescheduleTask(task.id, today)}
-            className="min-h-[36px] shrink-0 rounded-full bg-primary/10 px-3 text-xs font-semibold text-primary"
-          >
-            Today
-          </button>
-        )}
+        </div>
         {expandable && (
           <button onClick={() => setOpen((v) => !v)} aria-label={open ? 'Hide checklist' : 'Show checklist'} className="flex h-10 w-8 shrink-0 items-center justify-center text-muted-foreground">
             {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
