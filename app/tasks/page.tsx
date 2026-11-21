@@ -110,7 +110,7 @@ export default function TasksPage() {
       </div>
 
       <CalendarChips value={filter} onChange={setFilter} />
-      <QuickAddBar date={today} businessCode={filter === 'ALL' ? '' : filter} placeholder="Add a task for today — press Enter" />
+      <QuickAddBar date={today} businessCode={filter === 'ALL' ? '' : filter} placeholder="Add a task for today — press Enter" showOptions />
 
       {groups.total === 0 && (
         <div className="rounded-2xl border border-dashed border-border px-6 py-12 text-center">

@@ -2,12 +2,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, Trash2, X } from 'lucide-react';
+import { CalendarPlus, ChevronDown, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/lib/store';
 import { TaskDelegation, TaskPriority } from '@/lib/types';
 import { QUADRANTS } from '@/lib/work';
 import { Checklist, tomorrowOf, useToday } from './TaskParts';
+import { CalendarEntryInput, downloadIcs, googleCalendarUrl } from '@/lib/calendar-export';
 
 function Pill({ active, color, onClick, children }: { active: boolean; color?: string; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -59,6 +60,19 @@ export function TaskSheet({ taskId, onClose }: { taskId: string | null; onClose:
   };
   const day = task?.scheduledDate ?? task?.dueDate ?? '';
 
+  /** What goes to the phone's calendar: the day (all-day), notes, checklist and calendar name. */
+  const calendarEntry = (): CalendarEntryInput | null =>
+    task && day
+      ? {
+          title: task.title,
+          date: day,
+          notes: task.notes,
+          checklist: tasks.filter((t) => t.parentTaskId === task.id && !t.isDeleted).map((t) => t.title),
+          calendarName: businesses.find((b) => b.code === task.businessCode)?.name,
+          uid: task.id,
+        }
+      : null;
+
   return (
     <AnimatePresence>
       {task && (
@@ -102,6 +116,37 @@ export function TaskSheet({ taskId, onClose }: { taskId: string | null; onClose:
                     aria-label="Pick a date"
                     className="min-h-[40px] rounded-full border border-border bg-transparent px-3 text-base"
                   />
+                </div>
+                <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+                  <span className="flex items-center gap-1.5 font-semibold text-muted-foreground">
+                    <CalendarPlus className="h-4 w-4" /> Add to calendar
+                  </span>
+                  {day ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const e = calendarEntry();
+                          if (e) window.open(googleCalendarUrl(e), '_blank', 'noopener');
+                        }}
+                        className="min-h-[40px] font-semibold text-primary"
+                      >
+                        Google Calendar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const e = calendarEntry();
+                          if (e) downloadIcs(e);
+                        }}
+                        className="min-h-[40px] font-semibold text-primary"
+                      >
+                        Phone calendar file
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">Pick a day first</span>
+                  )}
                 </div>
               </div>
 
