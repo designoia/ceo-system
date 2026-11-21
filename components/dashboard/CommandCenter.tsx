@@ -69,19 +69,22 @@ export function CommandCenter({ onOpenTask }: { onOpenTask: (t: Task) => void })
   const upcomingTasks = active.filter((t) => t.status === 'NEXT' || t.status === 'THIS_WEEK').slice(0, 6);
   const todaysSchedule = scheduleEntries.filter((e) => e.date === today && e.status !== 'CANCELLED');
 
-
   const focusProject = projects.find((p) => p.status === 'ACTIVE');
+
+  // The right-hand column only appears when it has something to show.
+  const hasSidebar = !!focusProject || todaysSchedule.length > 0 || upcomingTasks.length > 0;
 
   const projectName = (id?: string) => (id ? projects.find((p) => p.id === id)?.name : undefined);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      {/* Left: Today table */}
-      <div className="lg:col-span-2">
+    <div className={`grid grid-cols-1 gap-4 ${hasSidebar ? 'lg:grid-cols-3' : ''}`}>
+      {/* Left: Today table (full width when nothing sits beside it) */}
+      <div className={hasSidebar ? 'lg:col-span-2' : ''}>
         <TodayTable onOpenTask={onOpenTask} />
       </div>
 
-      {/* Right: Focus project, scheduled, upcoming */}
+      {/* Right: Focus project, scheduled, upcoming (only when there is something to show) */}
+      {hasSidebar && (
       <div className="space-y-4">
         {focusProject && (
           <div className="rounded-lg border border-border surface-1 p-4">
@@ -98,16 +101,14 @@ export function CommandCenter({ onOpenTask }: { onOpenTask: (t: Task) => void })
           </div>
         )}
 
-        <div className="rounded-lg border border-border surface-1 p-4">
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-            <Clock className="h-3.5 w-3.5" />
-            <span>Scheduled Today ({todaysSchedule.length})</span>
-          </div>
-          {todaysSchedule.length === 0 ? (
-            <p className="text-[12px] text-muted-foreground py-1">No fixed commitments today.</p>
-          ) : (
+        {todaysSchedule.length > 0 && (
+          <div className="rounded-lg border border-border surface-1 p-4">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+              <Clock className="h-3.5 w-3.5" />
+              <span>Scheduled Today ({todaysSchedule.length})</span>
+            </div>
             <div className="space-y-1.5">
-              {todaysSchedule
+              {[...todaysSchedule]
                 .sort((a, b) => a.plannedStartTime.localeCompare(b.plannedStartTime))
                 .map((e) => (
                   <div key={e.id} className="flex items-center gap-2 text-[12px]">
@@ -116,8 +117,8 @@ export function CommandCenter({ onOpenTask }: { onOpenTask: (t: Task) => void })
                   </div>
                 ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {upcomingTasks.length > 0 && (
           <div className="rounded-lg border border-border surface-1 p-4">
@@ -133,6 +134,7 @@ export function CommandCenter({ onOpenTask }: { onOpenTask: (t: Task) => void })
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

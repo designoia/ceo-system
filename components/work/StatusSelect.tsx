@@ -6,7 +6,7 @@ import { Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleDot, Rotat
 import { cn } from '@/lib/utils';
 import { useStore } from '@/lib/store';
 import { Task } from '@/lib/types';
-import { useToday } from './TaskParts';
+import { useToday } from '@/lib/hooks/useToday';
 
 type Kind = 'not' | 'done' | 'pending' | 'overdue';
 
@@ -23,7 +23,7 @@ const kindOf = (t: Task): Kind => (t.status === 'DONE' ? 'done' : t.status === '
  * One dropdown that says where a task stands:
  * Not done · Done · Pending (waiting on someone) · Reschedule (pick a new day).
  */
-export function StatusSelect({ task }: { task: Task }) {
+export function StatusSelect({ task, align = 'right' }: { task: Task; align?: 'left' | 'right' }) {
   const { updateTaskStatus, undoTaskCompletion, rescheduleTask } = useStore();
   const today = useToday();
   const [open, setOpen] = useState(false);
@@ -40,6 +40,7 @@ export function StatusSelect({ task }: { task: Task }) {
     if (target === 'done') {
       if (kind !== 'done') updateTaskStatus(task.id, 'DONE');
     } else {
+      if (target === 'not' && kind === 'not') return close(); // already on its way: nothing to change
       if (kind === 'done') undoTaskCompletion(task.id);
       if (target === 'pending') updateTaskStatus(task.id, 'BLOCKED');
       else {
@@ -58,6 +59,7 @@ export function StatusSelect({ task }: { task: Task }) {
     close();
   };
 
+  const taskDate = task.scheduledDate ?? task.dueDate;
   const tomorrow = format(addDays(parseISO(today), 1), 'yyyy-MM-dd');
   const nextMon = format(nextMonday(parseISO(today)), 'yyyy-MM-dd');
 
@@ -82,7 +84,7 @@ export function StatusSelect({ task }: { task: Task }) {
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={close} />
-          <div role="menu" className="surface-2 absolute right-0 top-full z-40 mt-1.5 w-60 rounded-xl border border-border p-1.5 shadow-2xl">
+          <div role="menu" className={cn('surface-2 absolute top-full z-40 mt-1.5 w-60 rounded-xl border border-border p-1.5 shadow-2xl', align === 'left' ? 'left-0' : 'right-0')}>
             {step === 'main' ? (
               <>
                 <button role="menuitem" className={item(kind === 'not' || kind === 'overdue')} onClick={() => choose('not')}>
@@ -105,6 +107,11 @@ export function StatusSelect({ task }: { task: Task }) {
                 <button className="flex min-h-[40px] w-full items-center gap-1.5 px-2 text-xs font-semibold text-muted-foreground" onClick={() => setStep('main')}>
                   <ChevronLeft className="h-4 w-4" /> Move to…
                 </button>
+                {taskDate !== today && (
+                  <button role="menuitem" className={item(false)} onClick={() => moveTo(today)}>
+                    Today <span className="ml-auto text-[11px] font-normal text-muted-foreground">{format(parseISO(today), 'EEE d MMM')}</span>
+                  </button>
+                )}
                 <button role="menuitem" className={item(false)} onClick={() => moveTo(tomorrow)}>
                   Tomorrow <span className="ml-auto text-[11px] font-normal text-muted-foreground">{format(parseISO(tomorrow), 'EEE d MMM')}</span>
                 </button>

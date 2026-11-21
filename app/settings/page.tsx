@@ -21,6 +21,7 @@ import { TrashModal } from '@/components/tasks/TrashModal';
 import { GoogleConnectionCard } from '@/components/integrations/GoogleConnectionCard';
 import { MobileSettingsList } from '@/components/settings/MobileSettingsList';
 import { SyncCard } from '@/components/settings/SyncCard';
+import { WidgetCard } from '@/components/settings/WidgetCard';
 import { useSync } from '@/lib/sync/SyncProvider';
 
 const TIMEZONES = [
@@ -178,6 +179,7 @@ export default function SettingsPage() {
       )}
 
       <SyncCard />
+      <WidgetCard />
 
       {/* Mobile: native list-style settings */}
       <div className="md:hidden -mx-4 sm:-mx-6">

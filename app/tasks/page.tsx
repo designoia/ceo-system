@@ -18,14 +18,12 @@ function Section({
   tone,
   tasks,
   onOpen,
-  pull,
   hint,
 }: {
   title: string;
   tone?: 'red' | 'muted';
   tasks: Task[];
   onOpen: (t: Task) => void;
-  pull?: boolean;
   hint?: string;
 }) {
   if (tasks.length === 0) return null;
@@ -38,7 +36,7 @@ function Section({
       </div>
       <div className="space-y-2">
         {tasks.map((t) => (
-          <TaskRow key={t.id} task={t} onOpen={onOpen} expandable pullToToday={pull} />
+          <TaskRow key={t.id} task={t} onOpen={onOpen} expandable withStatus />
         ))}
       </div>
     </section>
@@ -112,7 +110,7 @@ export default function TasksPage() {
       </div>
 
       <CalendarChips value={filter} onChange={setFilter} />
-      <QuickAddBar date={today} businessCode={filter === 'ALL' ? '' : filter} placeholder="Add a task for today — press Enter" />
+      <QuickAddBar date={today} businessCode={filter === 'ALL' ? '' : filter} placeholder="Add a task for today — press Enter" showOptions />
 
       {groups.total === 0 && (
         <div className="rounded-2xl border border-dashed border-border px-6 py-12 text-center">
@@ -123,7 +121,7 @@ export default function TasksPage() {
 
       <Section title="Overdue" tone="red" tasks={groups.overdue} onOpen={open} />
       <Section title="Today" tasks={groups.today} onOpen={open} />
-      <Section title="Inbox" tasks={groups.inbox} onOpen={open} pull />
+      <Section title="Inbox" tasks={groups.inbox} onOpen={open} />
       <Section title="Upcoming" tasks={groups.upcoming} onOpen={open} />
       <Section title="Blocked" tasks={groups.blocked} onOpen={open} />
 
@@ -136,7 +134,7 @@ export default function TasksPage() {
           {showDone && (
             <div className="space-y-2">
               {groups.done.slice(0, 30).map((t) => (
-                <TaskRow key={t.id} task={t} onOpen={open} />
+                <TaskRow key={t.id} task={t} onOpen={open} withStatus />
               ))}
             </div>
           )}

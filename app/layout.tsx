@@ -3,22 +3,8 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { StoreProvider } from '@/lib/store';
 import { SyncProvider } from '@/lib/sync/SyncProvider';
-import { Header } from '@/components/layout/Header';
-import { Sidebar } from '@/components/layout/Sidebar';
-import { MobileNav } from '@/components/layout/MobileNav';
-import { QuickAddModal } from '@/components/layout/QuickAddModal';
-import { CommandPalette } from '@/components/layout/CommandPalette';
-import { FocusModeModal } from '@/components/focus/FocusModeModal';
-import { WelcomeBackModal } from '@/components/dashboard/WelcomeBackModal';
-import { OverdueReviewModal } from '@/components/dashboard/OverdueReviewModal';
-import { MustWinCarryForwardModal } from '@/components/dashboard/MustWinCarryForwardModal';
-import { MilestoneCelebration } from '@/components/feedback/MilestoneCelebration';
-import { ToastContainer } from '@/components/motion/ToastContainer';
-import { ConnectionBanner } from '@/components/motion/ConnectionBanner';
+import { AppShell } from '@/components/layout/AppShell';
 
-import { ScheduleTaskModal } from '@/components/schedule/ScheduleTaskModal';
-import { ConflictResolutionModal } from '@/components/integrations/ConflictResolutionModal';
-import { SyncLogViewerModal } from '@/components/integrations/SyncLogViewerModal';
 import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistration';
 import { InstallPrompt } from '@/components/pwa/InstallPrompt';
 import { UpdateBanner } from '@/components/pwa/UpdateBanner';
@@ -68,35 +54,7 @@ export default function RootLayout({
           <OfflineIndicator />
           <InstallPrompt />
 
-          <div className="flex min-h-screen">
-            {/* Desktop Navigation Sidebar */}
-            <Sidebar />
-
-            {/* Main Application Column */}
-            <div className="flex flex-1 flex-col overflow-x-hidden pb-20 md:pb-6">
-              <Header />
-              <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-6xl w-full mx-auto">
-                {children}
-              </main>
-            </div>
-          </div>
-
-          {/* Mobile Navigation */}
-          <MobileNav />
-
-          {/* Global Modals & Notifications */}
-          <FocusModeModal />
-          <QuickAddModal />
-          <CommandPalette />
-          <WelcomeBackModal />
-          <OverdueReviewModal />
-          <MustWinCarryForwardModal />
-          <MilestoneCelebration />
-          <ScheduleTaskModal />
-          <ConflictResolutionModal />
-          <SyncLogViewerModal />
-          <ToastContainer />
-          <ConnectionBanner />
+          <AppShell>{children}</AppShell>
           </SyncProvider>
         </StoreProvider>
       </body>

@@ -1,22 +1,21 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Check, ChevronDown, ChevronRight, ListChecks, Plus } from 'lucide-react';
+import { CalendarPlus, Check, ChevronDown, ChevronRight, ListChecks, Plus } from 'lucide-react';
 import { addDays, format, parseISO } from 'date-fns';
-import { cn, getTodayDateString } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { useStore } from '@/lib/store';
 import { Task } from '@/lib/types';
 import { NO_CAL_COLOR, statusForDate, taskDay } from '@/lib/work';
+import { useToday } from '@/lib/hooks/useToday';
+import { StatusSelect } from './StatusSelect';
 
 export function useCalendarColor() {
   const { businesses } = useStore();
   return (code: string) => businesses.find((b) => b.code === code)?.color ?? NO_CAL_COLOR;
 }
 
-export function useToday() {
-  const { settings } = useStore();
-  return getTodayDateString(settings.timezone || 'Asia/Kolkata');
-}
+export { useToday };
 
 /** Round tick box with a 44px tap target. */
 export function CheckBox({ checked, onToggle, color = '#6366f1', label }: { checked: boolean; onToggle: () => void; color?: string; label?: string }) {
@@ -108,17 +107,18 @@ export function TaskRow({
   onOpen,
   showCalendar = true,
   expandable = false,
-  pullToToday = false,
+  withStatus = false,
   compact = false,
 }: {
   task: Task;
   onOpen: (t: Task) => void;
   showCalendar?: boolean;
   expandable?: boolean;
-  pullToToday?: boolean;
+  /** Show the Not done / Done / Pending / Reschedule dropdown under the title. */
+  withStatus?: boolean;
   compact?: boolean;
 }) {
-  const { tasks, businesses, rescheduleTask } = useStore();
+  const { tasks, businesses } = useStore();
   const toggle = useToggleTask();
   const today = useToday();
   const [open, setOpen] = useState(false);
@@ -133,34 +133,33 @@ export function TaskRow({
     <div className={cn('rounded-xl border border-border surface-1', done && 'opacity-60')}>
       <div className={cn('flex items-center gap-3 px-3.5', compact ? 'min-h-[44px]' : 'min-h-[56px] py-1.5')}>
         <CheckBox checked={done} onToggle={() => toggle(task)} color={color(task.businessCode)} />
-        <button onClick={() => onOpen(task)} className="min-w-0 flex-1 py-1.5 text-left">
+        <div className="min-w-0 flex-1 py-1.5">
+          <button onClick={() => onOpen(task)} className="block w-full text-left">
           <div className={cn('text-[15px] font-medium leading-snug', done && 'line-through')}>{task.title}</div>
-          {!compact && (showCalendar && biz || label || subs.length > 0) && (
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground">
-              {showCalendar && biz && (
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full" style={{ background: biz.color }} />
-                  {biz.name}
-                </span>
-              )}
-              {label && <span className={cn(label.late && !done && 'font-semibold text-red-500')}>{label.text}</span>}
-              {subs.length > 0 && (
-                <span className="flex items-center gap-1">
-                  <ListChecks className="h-3 w-3" />
-                  {subsDone}/{subs.length}
-                </span>
-              )}
+            {!compact && (showCalendar && biz || label || subs.length > 0) && (
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground">
+                {showCalendar && biz && (
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full" style={{ background: biz.color }} />
+                    {biz.name}
+                  </span>
+                )}
+                {label && <span className={cn(label.late && !done && 'font-semibold text-red-500')}>{label.text}</span>}
+                {subs.length > 0 && (
+                  <span className="flex items-center gap-1">
+                    <ListChecks className="h-3 w-3" />
+                    {subsDone}/{subs.length}
+                  </span>
+                )}
+              </div>
+            )}
+          </button>
+          {withStatus && (
+            <div className="mt-1.5">
+              <StatusSelect task={task} align="left" />
             </div>
           )}
-        </button>
-        {pullToToday && !done && (
-          <button
-            onClick={() => rescheduleTask(task.id, today)}
-            className="min-h-[36px] shrink-0 rounded-full bg-primary/10 px-3 text-xs font-semibold text-primary"
-          >
-            Today
-          </button>
-        )}
+        </div>
         {expandable && (
           <button onClick={() => setOpen((v) => !v)} aria-label={open ? 'Hide checklist' : 'Show checklist'} className="flex h-10 w-8 shrink-0 items-center justify-center text-muted-foreground">
             {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -176,49 +175,135 @@ export function TaskRow({
   );
 }
 
-/** One-line capture. Enter adds. Everything else can be set later. */
+/**
+ * One-line capture. Enter adds. Everything else can be set later.
+ * With `showOptions`, a small button lets you pick the calendar and day for this one task.
+ */
 export function QuickAddBar({
   date,
   businessCode = '',
   placeholder = 'Add a task…',
   onAdded,
+  showOptions = false,
+  autoFocus = false,
 }: {
   date?: string;
   businessCode?: string;
   placeholder?: string;
   onAdded?: () => void;
+  showOptions?: boolean;
+  autoFocus?: boolean;
 }) {
-  const { addTask } = useStore();
+  const { addTask, businesses } = useStore();
   const today = useToday();
   const [title, setTitle] = useState('');
+  const [calOverride, setCalOverride] = useState<string | null>(null);
+  const [dateOverride, setDateOverride] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const calendar = calOverride ?? businessCode;
+  const day = dateOverride ?? date;
+  const biz = businesses.find((b) => b.code === calendar);
+  const customised = calOverride !== null || dateOverride !== null;
+  const dayText = !day ? 'No date' : day === today ? 'Today' : day === tomorrowOf(today) ? 'Tomorrow' : format(parseISO(day), 'd MMM');
 
   const submit = () => {
     if (!title.trim()) return;
     addTask({
       title: title.trim(),
-      businessCode,
-      scheduledDate: date,
-      status: statusForDate(date, today),
+      businessCode: calendar,
+      scheduledDate: day,
+      status: statusForDate(day, today),
     });
     setTitle('');
+    setCalOverride(null);
+    setDateOverride(null);
+    setOpen(false);
     onAdded?.();
   };
 
+  const pill = (active: boolean, color?: string) =>
+    cn('min-h-[40px] rounded-full border px-3.5 text-[13px] font-semibold', active ? 'text-white' : 'border-border text-muted-foreground');
+  const activeStyle = (color?: string) => ({ background: color ?? 'hsl(var(--primary))', borderColor: color ?? 'hsl(var(--primary))' });
+
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-border surface-1 pl-3.5 pr-1.5 focus-within:border-primary">
-      <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />
-      <input
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && submit()}
-        placeholder={placeholder}
-        enterKeyHint="done"
-        className="min-h-[48px] flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
-      />
-      {title.trim() && (
-        <button onClick={submit} className="min-h-[38px] rounded-lg bg-primary px-4 text-sm font-bold text-primary-foreground">
-          Add
-        </button>
+    <div className="relative">
+      <div className="flex items-center gap-2 rounded-xl border border-border surface-1 pl-3.5 pr-1.5 focus-within:border-primary">
+        <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
+          placeholder={placeholder}
+          enterKeyHint="done"
+          autoFocus={autoFocus}
+          className="min-h-[48px] min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
+        />
+        {showOptions && (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-label="Choose calendar and day for this task"
+            aria-expanded={open}
+            className={cn('flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold', customised ? 'bg-primary/10 text-primary' : 'text-muted-foreground')}
+          >
+            <CalendarPlus className="h-4 w-4" />
+            {customised && (
+              <span className="flex items-center gap-1.5">
+                {biz && <span className="h-2 w-2 rounded-full" style={{ background: biz.color }} />}
+                {dayText}
+              </span>
+            )}
+          </button>
+        )}
+        {title.trim() && (
+          <button onClick={submit} className="min-h-[38px] shrink-0 rounded-lg bg-primary px-4 text-sm font-bold text-primary-foreground">
+            Add
+          </button>
+        )}
+      </div>
+
+      {showOptions && open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="surface-2 absolute right-0 top-full z-40 mt-1.5 w-[min(22rem,100%)] space-y-3 rounded-xl border border-border p-3.5 shadow-2xl">
+            <div>
+              <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">Calendar</div>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setCalOverride('')} className={pill(!calendar)} style={!calendar ? activeStyle('#64748b') : undefined}>
+                  None
+                </button>
+                {businesses.map((b) => (
+                  <button key={b.code} onClick={() => setCalOverride(b.code)} className={pill(calendar === b.code)} style={calendar === b.code ? activeStyle(b.color) : undefined}>
+                    {b.name}
+                  </button>
+                ))}
+              </div>
+              {businesses.length === 0 && <p className="mt-1.5 text-xs text-muted-foreground">Create calendars with “Add calendar” above.</p>}
+            </div>
+            <div>
+              <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">Day</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button onClick={() => setDateOverride(today)} className={pill(day === today)} style={day === today ? activeStyle() : undefined}>
+                  Today
+                </button>
+                <button onClick={() => setDateOverride(tomorrowOf(today))} className={pill(day === tomorrowOf(today))} style={day === tomorrowOf(today) ? activeStyle() : undefined}>
+                  Tomorrow
+                </button>
+                <input
+                  type="date"
+                  value={day ?? ''}
+                  onChange={(e) => e.target.value && setDateOverride(e.target.value)}
+                  aria-label="Pick a day"
+                  className="min-h-[40px] rounded-full border border-border bg-transparent px-3 text-base"
+                />
+              </div>
+            </div>
+            <button onClick={() => setOpen(false)} className="min-h-[40px] w-full rounded-lg bg-secondary text-sm font-semibold">
+              Done
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

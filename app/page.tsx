@@ -6,7 +6,6 @@ import { getGreeting, getFormattedDate } from '@/lib/utils';
 import { CommandCenter } from '@/components/dashboard/CommandCenter';
 import { MobileCeoHome } from '@/components/dashboard/MobileCeoHome';
 import { TaskSheet } from '@/components/work/TaskSheet';
-import { OverdueBanner } from '@/components/dashboard/OverdueBanner';
 import { OverdueReviewModal } from '@/components/dashboard/OverdueReviewModal';
 import { MustWinCarryForwardModal } from '@/components/dashboard/MustWinCarryForwardModal';
 import { TodayIsDifferentModal } from '@/components/dashboard/TodayIsDifferentModal';
@@ -63,8 +62,6 @@ export default function HomePage() {
           </button>
         </div>
       </div>
-
-      <OverdueBanner />
 
       <div className="hidden md:block">
         <CommandCenter onOpenTask={(t) => setOpenTask(t)} />
